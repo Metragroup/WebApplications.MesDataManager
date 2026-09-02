@@ -9,11 +9,13 @@ a Blazor Server su .NET 10, con backend a layer e autenticazione Microsoft Entra
 MesDataManager.sln
 ├── Directory.Build.props          impostazioni comuni (net10.0, nullable, analyzer)
 ├── Directory.Packages.props       versioni dei pacchetti, centralizzate
-└── src/
-    ├── MesDataManager.Domain          entità e regole intrinseche, nessuna dipendenza
-    ├── MesDataManager.Application     contratti, descrittori, permessi
-    ├── MesDataManager.Infrastructure  EF Core, catalogo anagrafiche, lookup
-    └── MesDataManager.Web             Blazor Server + MudBlazor, Entra ID
+├── src/
+│   ├── MesDataManager.Domain          entità e regole intrinseche, nessuna dipendenza
+│   ├── MesDataManager.Application     contratti, descrittori, permessi
+│   ├── MesDataManager.Infrastructure  EF Core, catalogo anagrafiche, lookup
+│   └── MesDataManager.Web             Blazor Server + MudBlazor, Entra ID
+└── tests/
+    └── MesDataManager.Tests           regole del servizio, su SQLite in memoria
 ```
 
 Le dipendenze puntano verso l'interno: `Web → Infrastructure → Application → Domain`.
@@ -50,9 +52,9 @@ Il codice è nuovo, ma queste regole erano nell'app precedente e sono state mant
 
 ## Punti da verificare prima di procedere
 
-1. **Versioni dei pacchetti.** In `Directory.Packages.props` sono indicate versioni di
-   partenza. Alla prima apertura conviene aggiornarle da "Gestisci pacchetti NuGet",
-   in particolare MudBlazor e Microsoft.Identity.Web, che evolvono spesso.
+1. **La mappatura sul database reale.** Deriva dall'EDMX del WinForms, non da una query sullo
+   schema attuale. I test girano su SQLite, che accetta tipi di colonna che SQL Server
+   rifiuterebbe: la verifica tabella per tabella sul database vero è il primo lavoro utile.
 
 2. **`Press`, `Oven` e `HeatThreatment`.** Nell'app WinForms avevano già il codice di
    lettura e le etichette tradotte, ma erano state rimosse dall'albero di navigazione:
@@ -61,8 +63,12 @@ Il codice è nuovo, ma queste regole erano nell'app precedente e sono state mant
    Le anagrafiche effettivamente raggiungibili nell'app precedente erano tredici.
 
 3. **`PressFailureType`.** Compare fra gli "Archivi generali" ma non ha né `Position` né
-   `IsActive`, e infatti nel vecchio codice non rientrava fra le "master table". È stata
-   mappata come tabella a gestione piena, coerentemente con il comportamento precedente.
+   `IsActive`, e infatti nel vecchio codice non rientrava fra le "master table": è mappata
+   come tabella a gestione piena, coerentemente con il comportamento precedente, **tranne
+   l'eliminazione, che è disabilitata**. È referenziata dallo storico dei fermi macchina senza
+   un vincolo di chiave esterna, quindi un `DELETE` riuscirebbe lasciando riferimenti orfani.
+   È l'unico punto in cui questa applicazione fa meno del WinForms, e di proposito: vedi
+   `docs/decisioni-aperte.md`, voce A5.
 
 4. **Entità `Company`.** Mappata solo sulle tre colonne che servono al lookup. La tabella
    reale ne ha molte altre, alcune NOT NULL: va bene in lettura, ma non tentare inserimenti
@@ -108,6 +114,16 @@ dotnet build
 dotnet run --project src\MesDataManager.Web
 ```
 
+### 4. Test
+
+```powershell
+dotnet test
+```
+
+Non serve un database: le regole del servizio si verificano su SQLite in memoria. Restano
+fuori portata la traduzione dei codici di errore di SQL Server e la mappatura dei tipi di
+colonna, che vanno provate sul database reale.
+
 ## Nota sulle migration
 
 Il database è pre-esistente e resta di proprietà del MES: **questa solution non genera e non
@@ -121,17 +137,21 @@ istanze non è sicuro. Gli script vanno gestiti dal processo di deploy del datab
 
 ## Documentazione
 
-- [`Docs/architettura.md`](Docs/architettura.md) — perché le cose stanno così: scelta del
+- [`Docs/architettura.md`](docs/architettura.md) — perché le cose stanno così: scelta del
   render mode, separazione in layer, CRUD guidato dai metadati, regole recuperate dal
   WinForms, cosa è stato lasciato indietro e cosa non è stato verificato.
-- [`Docs/decisioni-aperte.md`](Docs/decisioni-aperte.md) — cosa resta da decidere, con il
+- [`Docs/decisioni-aperte.md`](docs/decisioni-aperte.md) — cosa resta da decidere, con il
   contesto per deciderlo e cosa succede se non si decide.
 
 ## Prossimi passi suggeriti
 
-1. Compilare, connettersi a un database di sviluppo e verificare la mappatura tabella per
-   tabella (è il punto in cui emergono le differenze fra EDMX e schema reale).
-2. Decidere la sorte di `Press`, `Oven` e `HeatThreatment`.
-3. Assegnare i ruoli Entra ID e provare i tre livelli di permesso.
-4. Solo dopo: affrontare i moduli testata/righe (batch, billette, fermate), che sono la
+1. Connettersi a un database di sviluppo e verificare la mappatura tabella per tabella (è il
+   punto in cui emergono le differenze fra EDMX e schema reale). Provare lì un salvataggio con
+   chiave duplicata e uno su una voce referenziata: sono i due percorsi di errore che i test
+   non possono coprire.
+2. Provare la modifica da browser con il circuito interattivo attivo, per confermare che
+   l'identità arrivi anche fuori dal rendering lato server.
+3. Decidere la sorte di `Press`, `Oven` e `HeatThreatment`.
+4. Assegnare i ruoli Entra ID e provare i tre livelli di permesso.
+5. Solo dopo: affrontare i moduli testata/righe (batch, billette, fermate), che sono la
    parte con logica di dominio vera.

@@ -107,33 +107,89 @@ saperlo.
 **Contesto.** Sulle anagrafiche con `EditPolicy.Full` l'eliminazione e' fisica (`DELETE`). Le
 tabelle allineate dall'ERP non ammettono eliminazione, quindi il problema non le riguarda.
 
-**Il rischio.** `DieCorrectionIssue`, `Module`, `OvenRecipe`, `EmailRecipient` sono
-verosimilmente referenziate dai dati di produzione. Un `DELETE` su una voce usata viene
-respinto dal vincolo di chiave esterna — e il servizio lo traduce in un messaggio comprensibile
-— ma solo **se il vincolo esiste a database**. Dove non c'e', l'eliminazione riesce e lascia
-riferimenti orfani nello storico.
+**Rilevato su `MES40_RDP_TEST` il 2 settembre 2026** (query su `sys.foreign_keys` e
+`sys.columns`). I vincoli di chiave esterna in ingresso allo schema `MasterData` sono **tre in
+tutto**:
 
-**Da verificare.** Quali di quelle quattro tabelle hanno vincoli di chiave esterna in ingresso.
-E' una query su `sys.foreign_keys`, va fatta sul database reale.
+| Anagrafica | Protetta da |
+|---|---|
+| `Oven` | `MasterData.OvenRecipe` |
+| `Press` | `Press.Batch`, `Press.BatchBillet` |
+| `Worker` | `Press.BatchWorker` |
 
-**Opzioni.** Se i vincoli mancano: disattivazione logica invece di eliminazione dove la tabella
-ha `IsActive` (`EmailRecipient` lo ha), o aggiunta dei vincoli mancanti (dipende da A3).
+Le sei anagrafiche su cui l'eliminazione e' abilitata sono `DieCorrectionIssue`, `Module`,
+`OvenRecipe`, `Worker`, `EmailRecipient`, `PressFailureType`: di queste **solo `Worker` ha una
+rete**, e parziale.
+
+**Il caso che pesa: `PressFailureType`.** Non ha vincoli in ingresso, ma e' referenziata di
+fatto da `Press.BatchDowntime.FailureType` e `History._BatchDowntime.FailureType` — 4,59 milioni
+di righe di fermi macchina. Il riferimento non si chiama come la chiave (`FailureType` contro
+`PressFailureTypeID`) e **i tipi non coincidono**: `tinyint` da un lato, `smallint` dall'altro.
+Un vincolo non e' quindi aggiungibile senza prima riconciliare i tipi. Nel frattempo un
+`DELETE` da questa applicazione riesce e lascia orfano lo storico dei fermi, senza che nessuno
+se ne accorga.
+
+**Quanto pesa, in numeri.** L'anagrafica censisce cinque tipi (`Produzione`, `Elettrico`,
+`Meccanico`, `Elettrico / Meccanico`, `Microfermo`). I fermi li usano tutti, in modo molto
+sbilanciato:
+
+| Tipo | Fermi che lo usano |
+|---|---|
+| 4 — Microfermo | 4.498.500 |
+| 0 — Produzione | 84.686 |
+| 2 — Meccanico | 4.228 |
+| 1 — Elettrico | 3.914 |
+| 3 — Elettrico / Meccanico | 756 |
+| 99 — *non esiste in anagrafica* | 25 |
+
+Eliminare `Microfermo` renderebbe illeggibili 4,5 milioni di righe di storico. E il valore 99,
+che nell'anagrafica non c'e', dimostra che il riferimento non e' mai stato garantito da
+nessuno: 25 fermi sono **gia'** orfani.
+
+**Nota per chi rifara' queste query.** `MES40_RDP_TEST` e' un ambiente vivo: durante la
+sessione di verifica `PressFailureType` e' passata da zero a cinque righe. I conteggi qui
+sopra sono una fotografia del 2 settembre 2026, non una costante.
+
+**Anche `Worker` e' meno protetta di quanto sembri.** Oltre a `Press.BatchWorker` (con vincolo)
+e' referenziata da `MobileDevice.Worker` e `MobileDevice.WorkerMenu`, **senza vincolo**. Il
+vincolo esistente respinge la cancellazione di un operatore con storico di lotto, non di uno
+presente solo sui dispositivi mobili.
+
+**Non referenziate da nessuna colonna omonima:** `DieCorrectionIssue`, `Module`, `OvenRecipe`,
+`EmailRecipient`. La ricerca e' per nome di colonna, quindi non e' una prova: un riferimento
+chiamato diversamente sfuggirebbe, come e' successo per `FailureType`.
+
+**Deciso il 2 settembre 2026, per `PressFailureType`.** Eliminazione disabilitata
+(`ArchiveDescriptor.PreventDelete`). Inserimento e modifica restano.
+
+Il divieto e' un flag a se' e non un quarto valore di `ArchiveEditPolicy`: la policy descrive
+come l'anagrafica e' governata, questo descrive un limite dello schema. Quando il vincolo di
+chiave esterna esistera' si toglie una riga dal catalogo, senza toccare il modello.
+
+E' l'unico punto in cui la nuova applicazione fa **meno** della precedente, dove
+l'eliminazione era possibile dal menu contestuale. Se qualcuno la usava, la segnalazione
+arrivera': la risposta e' che il vecchio comportamento poteva rendere illeggibile un pezzo di
+storico dei fermi, non che la funzione e' stata dimenticata.
+
+**Cosa resta da decidere.**
+
+1. Dove serve una disattivazione logica al posto della cancellazione: `EmailRecipient` e
+   `Worker` hanno `IsActive` e possono farla subito; `PressFailureType`, `Module`,
+   `DieCorrectionIssue` e `OvenRecipe` no, quindi dipendono da A3.
+2. Se aggiungere i vincoli mancanti a database, sapendo che per `PressFailureType` implica
+   anche un cambio di tipo di colonna (`tinyint` verso `smallint`).
+3. Se lo stesso trattamento serva a `Module`, `DieCorrectionIssue` e `OvenRecipe`: nessuna
+   colonna omonima le referenzia, ma la ricerca era per nome — e proprio su
+   `PressFailureType` quel metodo aveva mancato il riferimento.
+
+**Verificato per contro.** La traduzione dei codici di errore funziona: un inserimento a chiave
+duplicata restituisce `DuplicateKey` e uno che viola un vincolo di chiave esterna restituisce
+`ForeignKeyViolation`, entrambi come messaggio localizzato e non come errore del provider.
 
 **Se non si decide.** Un'eliminazione sbagliata puo' rendere illeggibile un pezzo di storico di
 produzione, ed e' il tipo di danno che si scopre mesi dopo.
 
 ---
-
-### A6 — Versioni dei pacchetti
-
-**Contesto.** `Directory.Packages.props` contiene versioni di partenza non verificate,
-soprattutto per MudBlazor e Microsoft.Identity.Web.
-
-**Azione.** Aggiornare da NuGet e fissare le versioni. Con la gestione centralizzata sono tutte
-in un file.
-
-**Se non si decide.** Ripristino con versioni vecchie o mancanti, ed eventuali errori di API
-attribuiti al codice invece che alla versione.
 
 ---
 
@@ -154,17 +210,24 @@ temporal table di SQL Server, o niente oltre i log.
 
 ---
 
-### B2 — Test automatici
+### B2 — Estensione dei test automatici
 
-**Contesto.** Non esiste un progetto di test.
+**Contesto.** `tests/MesDataManager.Tests` esiste (190 test su SQLite in memoria) e copre le
+regole del servizio: matrice di `IsWritable` per le tre policy, regola su `IsActive_Master`,
+permessi, validazione, conversione dei tipi, ordinamento e ricerca, coerenza del catalogo.
 
-**Dove renderebbero piu' servizio.** Non sulla UI generica, ma sulle regole del servizio: la
-regola su `IsActive_Master`, la matrice di `IsWritable` per le tre policy, la conversione dei
-tipi in `FieldValueConverter`, la traduzione degli errori SQL. Sono tutte testabili senza
-database, con un contesto in memoria o con doppi.
+**Cosa resta scoperto, e perche'.**
 
-**Perche' prima dei moduli testata/righe.** Lì la logica di dominio e' vera e i test diventano
-necessari, non opzionali. Conviene che l'infrastruttura di test esista gia'.
+- **La traduzione dei codici di errore di SQL Server** (2601/2627 chiave duplicata, 547 vincolo
+  di chiave esterna): SQLite non produce quei codici. Serve un database di prova vero, oppure
+  un doppio che simuli la `SqlException` — che verificherebbe la sola tabella di traduzione.
+- **La mappatura delle colonne.** SQLite accetta tipi che SQL Server rifiuterebbe: i test non
+  sostituiscono la verifica tabella per tabella sul database reale.
+- **La UI.** Nessun test di componente. Su una pagina generata dai metadati il rapporto fra
+  costo e beneficio e' discutibile; se si volesse, `bunit` e' la strada.
+
+**Perche' contava averli prima dei moduli testata/righe.** Lì la logica di dominio e' vera e i
+test diventano necessari, non opzionali. L'infrastruttura ora esiste.
 
 ---
 
@@ -214,4 +277,14 @@ il progetto API che richiama i servizi applicativi esistenti.
 
 ## Decisioni chiuse
 
-*(Nessuna ancora. Quando una voce sopra si chiude, va spostata qui con la decisione e la data.)*
+### A6 — Versioni dei pacchetti — *chiusa il 2 settembre 2026*
+
+**Com'era.** `Directory.Packages.props` conteneva versioni di partenza non verificate.
+
+**Decisione.** Versioni verificate e fissate. Alla data non risultavano aggiornamenti
+disponibili per i pacchetti effettivamente referenziati: MudBlazor 9.9.0, Microsoft.Identity.Web
+4.14.2, EF Core 10.0.11. Rimosse due voci mai referenziate da alcun progetto
+(`Microsoft.EntityFrameworkCore.Design`, incoerente con la scelta di non generare migration, e
+`Microsoft.Extensions.Localization.Abstractions`, fornita dal framework condiviso).
+
+**Nota.** Il controllo va rifatto periodicamente, ma non e' piu' una decisione: e' manutenzione.
