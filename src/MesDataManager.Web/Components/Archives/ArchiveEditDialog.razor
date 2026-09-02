@@ -1,0 +1,138 @@
+@inject IStringLocalizer<Strings> L
+@inject IArchiveService Archives
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            @(IsNewRecord ? L["NewTitle"] : L["EditTitle"]) &mdash; @L[Descriptor.NameKey]
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+        @if (Descriptor.EditPolicy is ArchiveEditPolicy.MasterControlled)
+        {
+            <MudAlert Severity="Severity.Warning"
+                      Variant="Variant.Outlined"
+                      Dense="true"
+                      Class="mb-4">
+                @L["MasterLockedHint"]
+            </MudAlert>
+        }
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-4">
+                @_error
+            </MudAlert>
+        }
+
+        <MudGrid Spacing="2">
+            @foreach (var field in EditableLayout)
+            {
+                <MudItem xs="12" sm="@(field.IsWide || field.Kind is ArchiveFieldKind.Boolean ? 12 : 6)">
+                    <ArchiveFieldEditor Field="field"
+                                        Row="Row"
+                                        Disabled="@(!Descriptor.IsWritable(field, IsNewRecord))"
+                                        HelperText="@HintFor(field)"
+                                        OnChanged="ClearError" />
+                </MudItem>
+            }
+        </MudGrid>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_saving">@L["CancelButton"]</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   OnClick="Save"
+                   Disabled="_saving">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @L["SaveButton"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public ArchiveDescriptor Descriptor { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public ArchiveRow Row { get; set; } = default!;
+
+    [Parameter]
+    public bool IsNewRecord { get; set; }
+
+    private bool _saving;
+    private string? _error;
+
+    /// <summary>
+    /// Ordine dei campi nel form: prima quelli scrivibili, poi quelli in sola lettura. Chi
+    /// compila trova subito cio' su cui puo' agire, e il resto resta consultabile sotto.
+    /// </summary>
+    private IEnumerable<ArchiveField> EditableLayout => Descriptor.Fields
+        .Where(f => !(f.IsKey && f.Editability is ArchiveFieldEditability.ReadOnly))
+        .OrderByDescending(f => Descriptor.IsWritable(f, IsNewRecord));
+
+    /// <summary>
+    /// Spiega all'operatore perche' un campo e' bloccato, invece di lasciarlo grigio e muto.
+    /// </summary>
+    private string? HintFor(ArchiveField field)
+    {
+        if (field.Name == nameof(MesDataManager.Domain.Abstractions.IActivatable.IsActive)
+            && Descriptor.HasMasterFlag
+            && !Row.IsActiveMaster)
+        {
+            return L["IsActiveLockedHint"];
+        }
+
+        return null;
+    }
+
+    private void ClearError() => _error = null;
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task Save()
+    {
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            if (IsNewRecord)
+            {
+                await Archives.InsertAsync(Descriptor.Key, Row);
+            }
+            else
+            {
+                await Archives.UpdateAsync(Descriptor.Key, Row);
+            }
+
+            Snackbar.Add(L["RecordSaved"], Severity.Success);
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        catch (ArchiveException ex)
+        {
+            // Il messaggio arriva come chiave di risorsa, cosi' resta nella lingua dell'utente.
+            _error = ex.MessageArguments.Length == 0
+                ? L[ex.MessageKey]
+                : L[ex.MessageKey, ex.MessageArguments];
+
+            if (ex.Field is not null)
+            {
+                _error = $"{L[ex.Field]}: {_error}";
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

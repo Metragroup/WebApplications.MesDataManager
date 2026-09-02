@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /></xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" /></xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AccessDenied" xml:space="preserve">
+    <value>You do not have permission for this operation.</value>
+  </data>
+  <data name="AppTitle" xml:space="preserve">
+    <value>MES Data Manager</value>
+  </data>
+  <data name="ArchiveLabel" xml:space="preserve">
+    <value>Archives</value>
+  </data>
+  <data name="AreaID" xml:space="preserve">
+    <value>Area</value>
+  </data>
+  <data name="AvailabilityClass" xml:space="preserve">
+    <value>Availability class</value>
+  </data>
+  <data name="BackMillimeterWeight" xml:space="preserve">
+    <value>Butt weight per mm</value>
+  </data>
+  <data name="BilletDeadTime" xml:space="preserve">
+    <value>Billet dead time</value>
+  </data>
+  <data name="BilletDiameter" xml:space="preserve">
+    <value>Billet diameter</value>
+  </data>
+  <data name="BilletMeterWeight" xml:space="preserve">
+    <value>Billet weight per meter</value>
+  </data>
+  <data name="CancelButton" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Code" xml:space="preserve">
+    <value>Code</value>
+  </data>
+  <data name="CompanyID" xml:space="preserve">
+    <value>Company</value>
+  </data>
+  <data name="DeleteButton" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="DeleteConfirmText" xml:space="preserve">
+    <value>This cannot be undone.</value>
+  </data>
+  <data name="DeleteConfirmTitle" xml:space="preserve">
+    <value>Delete this record?</value>
+  </data>
+  <data name="DeleteRecord" xml:space="preserve">
+    <value>Delete record</value>
+  </data>
+  <data name="Description" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="DieCorrectionIssue" xml:space="preserve">
+    <value>Die correction issue</value>
+  </data>
+  <data name="DieCorrectionIssueID" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="DuplicateKey" xml:space="preserve">
+    <value>A record with this key already exists.</value>
+  </data>
+  <data name="DurationMinutes" xml:space="preserve">
+    <value>Duration (minutes)</value>
+  </data>
+  <data name="EditButton" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="EditRecord" xml:space="preserve">
+    <value>Edit record</value>
+  </data>
+  <data name="EditTitle" xml:space="preserve">
+    <value>Edit record</value>
+  </data>
+  <data name="Email" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="EmailRecipient" xml:space="preserve">
+    <value>Email recipient</value>
+  </data>
+  <data name="EmailRecipientID" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="EmplID" xml:space="preserve">
+    <value>Operator</value>
+  </data>
+  <data name="ExitButton" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="FirstName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="ForeignKeyViolation" xml:space="preserve">
+    <value>The record is referenced by other data and cannot be deleted.</value>
+  </data>
+  <data name="HasMes" xml:space="preserve">
+    <value>MES managed</value>
+  </data>
+  <data name="HeatThreatmentArchive" xml:space="preserve">
+    <value>Thermal treatment</value>
+  </data>
+  <data name="HeatThreatmentID" xml:space="preserve">
+    <value>Thermal treatment</value>
+  </data>
+  <data name="IsActive" xml:space="preserve">
+    <value>Active</value>
+  </data>
+  <data name="IsActiveLockedHint" xml:space="preserve">
+    <value>The "Active" flag is only available for entries enabled at master level.</value>
+  </data>
+  <data name="IsActive_Master" xml:space="preserve">
+    <value>Active (Master)</value>
+  </data>
+  <data name="IsCorrectionOperator" xml:space="preserve">
+    <value>Correction operator</value>
+  </data>
+  <data name="IsElt" xml:space="preserve">
+    <value>Eletric operator</value>
+  </data>
+  <data name="IsLineSupervisor" xml:space="preserve">
+    <value>Line supervisor</value>
+  </data>
+  <data name="IsMachiningOperator" xml:space="preserve">
+    <value>Machining operator</value>
+  </data>
+  <data name="IsMec" xml:space="preserve">
+    <value>Mechanical operator</value>
+  </data>
+  <data name="IsOvenOperator" xml:space="preserve">
+    <value>Oven operator</value>
+  </data>
+  <data name="IsPackingOperator" xml:space="preserve">
+    <value>Packing operator</value>
+  </data>
+  <data name="IsPaintOperator" xml:space="preserve">
+    <value>Painting operator</value>
+  </data>
+  <data name="IsPressOperator" xml:space="preserve">
+    <value>Press operator</value>
+  </data>
+  <data name="IsPressSupervisor" xml:space="preserve">
+    <value>Press supervisor</value>
+  </data>
+  <data name="IsPressUnavailable" xml:space="preserve">
+    <value>Press unavailable</value>
+  </data>
+  <data name="IsProd" xml:space="preserve">
+    <value>Production</value>
+  </data>
+  <data name="IsRollingOperator" xml:space="preserve">
+    <value>Rolling operator</value>
+  </data>
+  <data name="IsSawOperator" xml:space="preserve">
+    <value>Saw operator</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="LastName" xml:space="preserve">
+    <value>Last name</value>
+  </data>
+  <data name="LogWeightTolerancePerc" xml:space="preserve">
+    <value>Log weight tolerance %</value>
+  </data>
+  <data name="MasterDataLabel" xml:space="preserve">
+    <value>Master data</value>
+  </data>
+  <data name="MasterLockedHint" xml:space="preserve">
+    <value>Only position and active flag can be changed on this table.</value>
+  </data>
+  <data name="MaxLengthExceeded" xml:space="preserve">
+    <value>Maximum length: {0} characters.</value>
+  </data>
+  <data name="MessageType" xml:space="preserve">
+    <value>Message type</value>
+  </data>
+  <data name="MiddleName" xml:space="preserve">
+    <value>Middle name</value>
+  </data>
+  <data name="MinCooling" xml:space="preserve">
+    <value>Minutes cooling</value>
+  </data>
+  <data name="MinCycle" xml:space="preserve">
+    <value>Minutes cycle</value>
+  </data>
+  <data name="MinCycleMax" xml:space="preserve">
+    <value>Minutes cycle (max)</value>
+  </data>
+  <data name="MinHourKg" xml:space="preserve">
+    <value>Minimum kg/hour</value>
+  </data>
+  <data name="MinRamp" xml:space="preserve">
+    <value>Minutes ramp</value>
+  </data>
+  <data name="Module" xml:space="preserve">
+    <value>Module</value>
+  </data>
+  <data name="ModuleCapacity" xml:space="preserve">
+    <value>Capacity</value>
+  </data>
+  <data name="ModuleGroupID" xml:space="preserve">
+    <value>Module group</value>
+  </data>
+  <data name="ModuleID" xml:space="preserve">
+    <value>Module number</value>
+  </data>
+  <data name="ModuleRepairReason" xml:space="preserve">
+    <value>Module repair reason</value>
+  </data>
+  <data name="ModuleRepairReasonID" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="ModuleScrapReason" xml:space="preserve">
+    <value>Module scrap reason</value>
+  </data>
+  <data name="ModuleScrapReasonID" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="ModuleTransRouteReason" xml:space="preserve">
+    <value>Module route reason</value>
+  </data>
+  <data name="ModuleTransRouteReasonID" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="NavArchives" xml:space="preserve">
+    <value>Master data</value>
+  </data>
+  <data name="NavHome" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="NewButton" xml:space="preserve">
+    <value>New</value>
+  </data>
+  <data name="NewRecord" xml:space="preserve">
+    <value>New record</value>
+  </data>
+  <data name="NewTitle" xml:space="preserve">
+    <value>New record</value>
+  </data>
+  <data name="NoRecords" xml:space="preserve">
+    <value>No records to show.</value>
+  </data>
+  <data name="Note" xml:space="preserve">
+    <value>Notes</value>
+  </data>
+  <data name="OeeClass" xml:space="preserve">
+    <value>OEE class</value>
+  </data>
+  <data name="OprID" xml:space="preserve">
+    <value>Operation</value>
+  </data>
+  <data name="OvenArchive" xml:space="preserve">
+    <value>Oven</value>
+  </data>
+  <data name="OvenID" xml:space="preserve">
+    <value>Oven</value>
+  </data>
+  <data name="OvenOprID" xml:space="preserve">
+    <value>Oven operation</value>
+  </data>
+  <data name="OvenRecipe" xml:space="preserve">
+    <value>Oven recipes</value>
+  </data>
+  <data name="OvenRecipeID" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="OvenWrkCtrID" xml:space="preserve">
+    <value>Oven work center</value>
+  </data>
+  <data name="PaintingDowntimeReason" xml:space="preserve">
+    <value>Painting downtime reason</value>
+  </data>
+  <data name="PaintingDowntimeReasonID" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Position" xml:space="preserve">
+    <value>Position</value>
+  </data>
+  <data name="PressArchive" xml:space="preserve">
+    <value>Press</value>
+  </data>
+  <data name="PressBatchClosingReasonArchive" xml:space="preserve">
+    <value>Batch closing reason</value>
+  </data>
+  <data name="PressBatchClosingReasonID" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="PressDowntimeReasonArchive" xml:space="preserve">
+    <value>Machine downtime reason</value>
+  </data>
+  <data name="PressDowntimeReasonID" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="PressFailureTypeArchive" xml:space="preserve">
+    <value>Machine downtime types</value>
+  </data>
+  <data name="PressFailureTypeID" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="PressID" xml:space="preserve">
+    <value>Press</value>
+  </data>
+  <data name="PressMonitor_IsActive" xml:space="preserve">
+    <value>Press monitor active</value>
+  </data>
+  <data name="PressMonitor_Max" xml:space="preserve">
+    <value>Monitor: maximum</value>
+  </data>
+  <data name="PressMonitor_Min" xml:space="preserve">
+    <value>Monitor: minimum</value>
+  </data>
+  <data name="PressMonitor_Step" xml:space="preserve">
+    <value>Monitor: step</value>
+  </data>
+  <data name="PressMonitor_Threshold1" xml:space="preserve">
+    <value>Monitor: threshold 1</value>
+  </data>
+  <data name="PressMonitor_Threshold2" xml:space="preserve">
+    <value>Monitor: threshold 2</value>
+  </data>
+  <data name="PressReducedProdReasonArchive" xml:space="preserve">
+    <value>Reason for reduced production</value>
+  </data>
+  <data name="PressReducedProdReasonID" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="RecipeID" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="RecordDeleted" xml:space="preserve">
+    <value>Record deleted.</value>
+  </data>
+  <data name="RecordSaved" xml:space="preserve">
+    <value>Record saved.</value>
+  </data>
+  <data name="RefreshButton" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="RequiredField" xml:space="preserve">
+    <value>This field is required.</value>
+  </data>
+  <data name="Result" xml:space="preserve">
+    <value>Result</value>
+  </data>
+  <data name="SaveButton" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="SaveFailed" xml:space="preserve">
+    <value>Save failed. Check the values you entered.</value>
+  </data>
+  <data name="SawOprID" xml:space="preserve">
+    <value>Saw operation</value>
+  </data>
+  <data name="SawWrkCtrID" xml:space="preserve">
+    <value>Saw work center</value>
+  </data>
+  <data name="Saw_PlcIP" xml:space="preserve">
+    <value>Saw PLC IP</value>
+  </data>
+  <data name="Saw_PlcPort" xml:space="preserve">
+    <value>Saw PLC port</value>
+  </data>
+  <data name="SearchPlaceholder" xml:space="preserve">
+    <value>Search…</value>
+  </data>
+  <data name="SelectArchivePrompt" xml:space="preserve">
+    <value>Pick a master data table from the list to see its contents.</value>
+  </data>
+  <data name="ShowInactive" xml:space="preserve">
+    <value>Show inactive entries</value>
+  </data>
+  <data name="SignOut" xml:space="preserve">
+    <value>Sign out</value>
+  </data>
+  <data name="Temperature" xml:space="preserve">
+    <value>Temperature</value>
+  </data>
+  <data name="WorkerArchive" xml:space="preserve">
+    <value>Operator</value>
+  </data>
+  <data name="WorkerID" xml:space="preserve">
+    <value>Operator</value>
+  </data>
+</root>

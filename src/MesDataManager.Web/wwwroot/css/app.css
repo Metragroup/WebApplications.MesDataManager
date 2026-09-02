@@ -1,0 +1,142 @@
+/*
+   Fogli di stile dell'applicazione. MudBlazor fornisce il sistema di componenti; qui restano
+   soltanto le decisioni che il tema C# non puo' esprimere: famiglie tipografiche, densita'
+   delle tabelle e trattamento dei codici macchina.
+
+   I font sono caricati da Google Fonts. Su rete di stabilimento senza uscita verso Internet
+   vanno scaricati in wwwroot/fonts e serviti da qui: lo stack di fallback (Segoe UI, system-ui)
+   copre comunque il caso in cui non arrivino.
+*/
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+html, body {
+    margin: 0;
+    font-feature-settings: 'tnum' 1; /* cifre a larghezza fissa: le colonne numeriche si allineano */
+}
+
+.mes-main {
+    padding: 1.5rem 1.75rem 1rem;
+}
+
+/* ---------------------------------------------------------------- intestazioni di pagina */
+
+.mes-page__head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.mes-page__title {
+    margin: 0;
+    font-size: 1.375rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+}
+
+.mes-lede {
+    max-width: 62ch;
+    color: var(--mud-palette-text-secondary);
+}
+
+/* ---------------------------------------------------------------- barra strumenti */
+
+.mes-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 0.5rem 0 0.75rem;
+    background: transparent;
+}
+
+.mes-toolbar__search {
+    max-width: 22rem;
+    flex: 1 1 16rem;
+}
+
+/* ---------------------------------------------------------------- tabelle */
+
+/* I codici macchina (ID, causali, matricole) vanno in monospazio: 0/O e 1/I restano distinti. */
+.mes-cell--code {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+}
+
+.mes-cell--number {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.mes-cell--wide {
+    min-width: 18rem;
+}
+
+.mes-cell--actions {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+}
+
+/* Una voce disattivata resta consultabile ma non compete con quelle in uso. */
+.mes-row--inactive td {
+    color: var(--mud-palette-text-disabled);
+    font-style: italic;
+}
+
+/* ---------------------------------------------------------------- navigazione */
+
+.mes-nav {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.mes-nav__filter {
+    padding: 0.75rem 0.75rem 0.25rem;
+}
+
+.mes-nav__group {
+    padding: 1rem 1rem 0.25rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.mes-nav__empty {
+    padding: 1rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+/* ---------------------------------------------------------------- schede della home */
+
+.mes-card {
+    padding: 1.25rem 1rem;
+    border: 1px solid var(--mud-palette-divider);
+}
+
+.mes-card__label {
+    padding: 0 0.75rem 0.5rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.mes-field__hint {
+    display: block;
+    margin-top: 0.125rem;
+    color: var(--mud-palette-warning);
+}
+
+/* ---------------------------------------------------------------- accessibilita' */
+
+:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}

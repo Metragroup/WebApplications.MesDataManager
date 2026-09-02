@@ -1,0 +1,20 @@
+## Build
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+logs/
+*.user
+*.suo
+.vs/
+.vscode/
+
+## NuGet
+*.nupkg
+packages/
+!packages/build/
+
+## Rider / VS Code
+.idea/
+
+## Segreti locali
+appsettings.*.local.json

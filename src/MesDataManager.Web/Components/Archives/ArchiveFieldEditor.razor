@@ -1,0 +1,141 @@
+@inject IStringLocalizer<Strings> L
+@inject ILookupProvider Lookups
+
+@*
+    Traduce un ArchiveField nel controllo MudBlazor adatto. E' il punto in cui i metadati
+    diventano interfaccia: nessuna pagina di anagrafica scrive campi a mano.
+*@
+
+@switch (Field.Kind)
+{
+    case ArchiveFieldKind.Boolean:
+        <MudSwitch T="bool"
+                   Value="@AsBool()"
+                   ValueChanged="@(v => Commit(v))"
+                   Label="@Label"
+                   Color="Color.Primary"
+                   Disabled="Disabled" />
+        @if (!string.IsNullOrEmpty(HelperText))
+        {
+            <MudText Typo="Typo.caption" Class="mes-field__hint">@HelperText</MudText>
+        }
+        break;
+
+    case ArchiveFieldKind.Integer:
+        <MudNumericField T="long?"
+                         Value="@AsLong()"
+                         ValueChanged="@(v => Commit(v))"
+                         Label="@Label"
+                         Required="Field.IsRequired"
+                         Disabled="Disabled"
+                         HelperText="@HelperText"
+                         Variant="Variant.Outlined"
+                         Margin="Margin.Dense"
+                         HideSpinButtons="true" />
+        break;
+
+    case ArchiveFieldKind.Decimal:
+        <MudNumericField T="decimal?"
+                         Value="@AsDecimal()"
+                         ValueChanged="@(v => Commit(v))"
+                         Label="@Label"
+                         Required="Field.IsRequired"
+                         Disabled="Disabled"
+                         HelperText="@HelperText"
+                         Format="@DecimalFormat"
+                         Variant="Variant.Outlined"
+                         Margin="Margin.Dense"
+                         HideSpinButtons="true" />
+        break;
+
+    case ArchiveFieldKind.Lookup:
+        <MudSelect T="string"
+                   Value="@AsText()"
+                   ValueChanged="@(v => Commit(v))"
+                   Label="@Label"
+                   Required="Field.IsRequired"
+                   Disabled="Disabled"
+                   HelperText="@HelperText"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   AnchorOrigin="Origin.BottomCenter">
+            @foreach (var item in _lookupItems)
+            {
+                <MudSelectItem T="string" Value="@item.Value">@item.Text</MudSelectItem>
+            }
+        </MudSelect>
+        break;
+
+    default:
+        <MudTextField T="string"
+                      Value="@AsText()"
+                      ValueChanged="@(v => Commit(v))"
+                      Label="@Label"
+                      Required="Field.IsRequired"
+                      Disabled="Disabled"
+                      HelperText="@HelperText"
+                      MaxLength="@(Field.MaxLength ?? 4000)"
+                      Counter="@Field.MaxLength"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Immediate="false" />
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public ArchiveField Field { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public ArchiveRow Row { get; set; } = default!;
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>Testo di supporto sotto il campo, usato per spiegare perche' e' bloccato.</summary>
+    [Parameter]
+    public string? HelperText { get; set; }
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private IReadOnlyList<LookupItem> _lookupItems = [];
+
+    private string Label => L[Field.ResolvedLabelKey];
+
+    private string DecimalFormat => "F" + Field.DecimalDigits.ToString(CultureInfo.InvariantCulture);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Field.Kind is ArchiveFieldKind.Lookup && Field.LookupKey is { } key && _lookupItems.Count == 0)
+        {
+            _lookupItems = await Lookups.GetAsync(key);
+        }
+    }
+
+    private string? AsText() => Row[Field.Name]?.ToString();
+
+    private bool AsBool() => Row[Field.Name] is true;
+
+    private long? AsLong() => Row[Field.Name] switch
+    {
+        null => null,
+        var value => Convert.ToInt64(value, CultureInfo.InvariantCulture),
+    };
+
+    private decimal? AsDecimal() => Row[Field.Name] switch
+    {
+        null => null,
+        var value => Convert.ToDecimal(value, CultureInfo.InvariantCulture),
+    };
+
+    /// <summary>
+    /// Scrive il valore nella riga. La conversione al tipo esatto della colonna avviene lato
+    /// servizio: qui basta non perdere informazione.
+    /// </summary>
+    private async Task Commit(object? value)
+    {
+        Row[Field.Name] = value;
+        await OnChanged.InvokeAsync();
+    }
+}

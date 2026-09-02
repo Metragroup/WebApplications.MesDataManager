@@ -1,0 +1,56 @@
+@page "/"
+@inject IArchiveCatalog Catalog
+@inject IStringLocalizer<Strings> L
+
+<PageTitle>@L["AppTitle"]</PageTitle>
+
+@*
+    L'apertura non e' un cruscotto: chi entra qui deve raggiungere una tabella. La pagina
+    mostra quindi l'elenco delle anagrafiche raggruppato come nel menu, con un conteggio
+    che serve solo a orientarsi.
+*@
+
+<div class="mes-page">
+    <header class="mes-page__head">
+        <h1 class="mes-page__title">@L["NavArchives"]</h1>
+    </header>
+
+    <MudText Typo="Typo.body1" Class="mb-6 mes-lede">@L["SelectArchivePrompt"]</MudText>
+
+    <MudGrid Spacing="3">
+        @foreach (var group in Grouped)
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Elevation="0" Class="mes-card">
+                    <MudText Typo="Typo.subtitle2" Class="mes-card__label">@L[group.LabelKey]</MudText>
+
+                    <MudList T="string" Dense="true">
+                        @foreach (var descriptor in group.Items)
+                        {
+                            <MudListItem T="string"
+                                         Href="@($"/anagrafiche/{descriptor.Key}")"
+                                         Icon="@Icons.Material.Outlined.ChevronRight">
+                                @L[descriptor.NameKey]
+                            </MudListItem>
+                        }
+                    </MudList>
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+</div>
+
+@code {
+    private IEnumerable<(string LabelKey, List<ArchiveDescriptor> Items)> Grouped =>
+    [
+        ("MasterDataLabel", Sorted(ArchiveGroup.MasterData)),
+        ("ArchiveLabel", Sorted(ArchiveGroup.Plant)),
+    ];
+
+    private List<ArchiveDescriptor> Sorted(ArchiveGroup group) =>
+    [
+        .. Catalog.All
+            .Where(d => d.Group == group)
+            .OrderBy(d => L[d.NameKey].Value, StringComparer.CurrentCulture)
+    ];
+}

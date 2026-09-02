@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>MesDataManager.Web</RootNamespace>
+    <UserSecretsId>mesdatamanager-web</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Identity.Web" />
+    <PackageReference Include="Microsoft.Identity.Web.UI" />
+    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="Serilog.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MesDataManager.Application\MesDataManager.Application.csproj" />
+    <ProjectReference Include="..\MesDataManager.Domain\MesDataManager.Domain.csproj" />
+    <ProjectReference Include="..\MesDataManager.Infrastructure\MesDataManager.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

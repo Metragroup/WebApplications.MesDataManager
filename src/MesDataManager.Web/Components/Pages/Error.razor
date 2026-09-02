@@ -1,0 +1,26 @@
+@page "/Error"
+@using System.Diagnostics
+@inject IStringLocalizer<Strings> L
+
+<PageTitle>@L["SaveFailed"]</PageTitle>
+
+<div class="mes-page">
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+        <MudText Typo="Typo.body1">@L["SaveFailed"]</MudText>
+        @if (RequestId is not null)
+        {
+            <MudText Typo="Typo.caption" Class="mes-cell--code">@RequestId</MudText>
+        }
+    </MudAlert>
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    /// <summary>
+    /// Identificativo della richiesta: e' l'unica cosa che serve all'utente per farsi
+    /// aiutare, e l'unica che possiamo mostrare senza esporre dettagli interni.
+    /// </summary>
+    private string? RequestId => Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

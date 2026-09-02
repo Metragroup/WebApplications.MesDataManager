@@ -1,0 +1,312 @@
+@page "/anagrafiche/{ArchiveKey}"
+
+@inject IArchiveCatalog Catalog
+@inject IArchiveService Archives
+@inject IUserContext User
+@inject IStringLocalizer<Strings> L
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+@*
+    Unica pagina per tutte le anagrafiche. Colonne, editor e permessi derivano dal descrittore,
+    quindi le sedici tabelle condividono lo stesso codice e lo stesso comportamento.
+*@
+
+@if (_descriptor is null)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">@L["SelectArchivePrompt"]</MudAlert>
+}
+else
+{
+    <PageTitle>@L[_descriptor.NameKey] &middot; @L["AppTitle"]</PageTitle>
+
+    <div class="mes-page">
+        <header class="mes-page__head">
+            <h1 class="mes-page__title">@L[_descriptor.NameKey]</h1>
+
+            @if (_descriptor.EditPolicy is ArchiveEditPolicy.ReadOnly)
+            {
+                <MudChip T="string"
+                         Icon="@Icons.Material.Outlined.Lock"
+                         Size="Size.Small"
+                         Color="Color.Default"
+                         Variant="Variant.Outlined">
+                    @L["ArchiveLabel"]
+                </MudChip>
+            }
+        </header>
+
+        @if (_descriptor.EditPolicy is ArchiveEditPolicy.MasterControlled)
+        {
+            <MudAlert Severity="Severity.Info"
+                      Variant="Variant.Outlined"
+                      Dense="true"
+                      Class="mb-3">
+                @L["MasterLockedHint"]
+            </MudAlert>
+        }
+
+        <MudPaper Elevation="0" Class="mes-toolbar">
+            <MudTextField @bind-Value="_search"
+                          Placeholder="@L["SearchPlaceholder"]"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Outlined.Search"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Clearable="true"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ReloadAsync"
+                          Class="mes-toolbar__search" />
+
+            @if (_descriptor.SupportsActiveFilter)
+            {
+                <MudSwitch T="bool"
+                           Value="_includeInactive"
+                           ValueChanged="OnIncludeInactiveChanged"
+                           Label="@L["ShowInactive"]"
+                           Color="Color.Primary" />
+            }
+
+            <MudSpacer />
+
+            <MudButton StartIcon="@Icons.Material.Outlined.Refresh"
+                       Variant="Variant.Text"
+                       OnClick="ReloadAsync">
+                @L["RefreshButton"]
+            </MudButton>
+
+            @if (_descriptor.AllowsInsert && User.CanInsert)
+            {
+                <MudButton StartIcon="@Icons.Material.Outlined.Add"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="AddAsync">
+                    @L["NewButton"]
+                </MudButton>
+            }
+        </MudPaper>
+
+        <MudDataGrid T="ArchiveRow"
+                     Items="_rows"
+                     Loading="_loading"
+                     Dense="true"
+                     Hover="true"
+                     Striped="true"
+                     Bordered="false"
+                     FixedHeader="true"
+                     Height="calc(100vh - 260px)"
+                     SortMode="SortMode.Multiple"
+                     RowClassFunc="@RowClass"
+                     Elevation="0">
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Class="pa-6">@L["NoRecords"]</MudText>
+            </NoRecordsContent>
+
+            <Columns>
+                @foreach (var field in _descriptor.GridFields)
+                {
+                    var current = field;
+
+                    <TemplateColumn T="ArchiveRow"
+                                    Title="@L[current.ResolvedLabelKey]"
+                                    Sortable="true"
+                                    SortBy="@(row => row[current.Name])"
+                                    CellClass="@CellClass(current)">
+                        <CellTemplate>
+                            @if (current.Kind is ArchiveFieldKind.Boolean)
+                            {
+                                <MudIcon Size="Size.Small"
+                                         Color="@(context.Item[current.Name] is true ? Color.Success : Color.Default)"
+                                         Icon="@(context.Item[current.Name] is true
+                                             ? Icons.Material.Outlined.CheckCircle
+                                             : Icons.Material.Outlined.RadioButtonUnchecked)" />
+                            }
+                            else
+                            {
+                                @Display(context.Item, current)
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                }
+
+                @if (_descriptor.AllowsUpdate || _descriptor.AllowsDelete)
+                {
+                    <TemplateColumn T="ArchiveRow" Sortable="false" CellClass="mes-cell--actions">
+                        <CellTemplate>
+                            @if (_descriptor.AllowsUpdate && User.CanUpdate)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Outlined.Edit"
+                                               Size="Size.Small"
+                                               aria-label="@L["EditRecord"]"
+                                               OnClick="@(() => EditAsync(context.Item))" />
+                            }
+                            @if (_descriptor.AllowsDelete && User.CanDelete)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Outlined.Delete"
+                                               Size="Size.Small"
+                                               Color="Color.Error"
+                                               aria-label="@L["DeleteRecord"]"
+                                               OnClick="@(() => DeleteAsync(context.Item))" />
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                }
+            </Columns>
+
+            <PagerContent>
+                <MudDataGridPager T="ArchiveRow" PageSizeOptions="new[] { 25, 50, 100 }" />
+            </PagerContent>
+        </MudDataGrid>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? ArchiveKey { get; set; }
+
+    private ArchiveDescriptor? _descriptor;
+    private IReadOnlyList<ArchiveRow> _rows = [];
+    private bool _loading;
+    private bool _includeInactive;
+    private string? _search;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var resolved = ArchiveKey is null ? null : Catalog.Find(ArchiveKey);
+
+        if (resolved is null || ReferenceEquals(resolved, _descriptor))
+        {
+            _descriptor = resolved;
+            return;
+        }
+
+        // Cambio di anagrafica: i filtri della precedente non hanno piu' senso.
+        _descriptor = resolved;
+        _search = null;
+        _includeInactive = false;
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (_descriptor is null)
+        {
+            return;
+        }
+
+        _loading = true;
+
+        try
+        {
+            _rows = await Archives.GetRowsAsync(
+                _descriptor.Key,
+                new ArchiveQuery(_includeInactive, _search));
+        }
+        catch (ArchiveException ex)
+        {
+            Snackbar.Add(L[ex.MessageKey], Severity.Error);
+            _rows = [];
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnIncludeInactiveChanged(bool value)
+    {
+        _includeInactive = value;
+        await ReloadAsync();
+    }
+
+    private async Task AddAsync()
+    {
+        if (_descriptor is null)
+        {
+            return;
+        }
+
+        var template = await Archives.CreateTemplateAsync(_descriptor.Key);
+        await ShowEditorAsync(template, isNewRecord: true);
+    }
+
+    private Task EditAsync(ArchiveRow row) =>
+        // Si modifica una copia: se l'operatore annulla, la griglia resta com'era.
+        ShowEditorAsync(row.Clone(), isNewRecord: false);
+
+    private async Task ShowEditorAsync(ArchiveRow row, bool isNewRecord)
+    {
+        if (_descriptor is null)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<ArchiveEditDialog>
+        {
+            { d => d.Descriptor, _descriptor },
+            { d => d.Row, row },
+            { d => d.IsNewRecord, isNewRecord },
+        };
+
+        var dialog = await Dialogs.ShowAsync<ArchiveEditDialog>(string.Empty, parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false })
+        {
+            await ReloadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(ArchiveRow row)
+    {
+        if (_descriptor is null)
+        {
+            return;
+        }
+
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            L["DeleteConfirmTitle"],
+            L["DeleteConfirmText"],
+            yesText: L["DeleteButton"],
+            cancelText: L["CancelButton"]);
+
+        if (confirmed is not true)
+        {
+            return;
+        }
+
+        try
+        {
+            await Archives.DeleteAsync(_descriptor.Key, row);
+            Snackbar.Add(L["RecordDeleted"], Severity.Success);
+            await ReloadAsync();
+        }
+        catch (ArchiveException ex)
+        {
+            Snackbar.Add(L[ex.MessageKey], Severity.Error);
+        }
+    }
+
+    /// <summary>Le voci disattivate restano leggibili ma visibilmente in secondo piano.</summary>
+    private string RowClass(ArchiveRow row, int _) =>
+        _descriptor?.SupportsActiveFilter == true && !row.IsActive ? "mes-row--inactive" : string.Empty;
+
+    /// <summary>Codici e identificativi in monospazio: cifre e lettere simili restano distinguibili.</summary>
+    private static string CellClass(ArchiveField field) => field switch
+    {
+        { IsKey: true } => "mes-cell--code",
+        { Name: "Code" or "OprId" or "EmplId" or "ModuleId" or "ModuleGroupId" } => "mes-cell--code",
+        { IsWide: true } => "mes-cell--wide",
+        { Kind: ArchiveFieldKind.Decimal or ArchiveFieldKind.Integer } => "mes-cell--number",
+        _ => string.Empty,
+    };
+
+    private static string Display(ArchiveRow row, ArchiveField field) => row[field.Name] switch
+    {
+        null => "—",
+        decimal value => value.ToString("N" + field.DecimalDigits, CultureInfo.CurrentCulture),
+        DateTime value => value.ToString("d", CultureInfo.CurrentCulture),
+        var value => value.ToString() ?? string.Empty,
+    };
+}

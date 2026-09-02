@@ -1,0 +1,65 @@
+using MesDataManager.Application.Lookups;
+using MesDataManager.Infrastructure.Persistence;
+
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+
+namespace MesDataManager.Infrastructure.Lookups;
+
+/// <summary>
+/// Fornisce gli elenchi per i campi che puntano a un'altra tabella. Gli elenchi sono piccoli e
+/// cambiano raramente, quindi restano in cache per pochi minuti: evita una query a ogni
+/// apertura del form senza rischiare di mostrare dati troppo vecchi.
+/// </summary>
+public sealed class LookupProvider(MesDbContext context, IMemoryCache cache) : ILookupProvider
+{
+    private static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(5);
+
+    public async Task<IReadOnlyList<LookupItem>> GetAsync(
+        string lookupKey,
+        CancellationToken cancellationToken = default)
+    {
+        if (cache.TryGetValue<IReadOnlyList<LookupItem>>($"lookup:{lookupKey}", out var cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        IReadOnlyList<LookupItem> items = lookupKey switch
+        {
+            LookupKeys.Companies => await context.Companies
+                .AsNoTracking()
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.Description)
+                .Select(c => new LookupItem(c.CompanyId, c.CompanyId + " - " + c.Description))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false),
+
+            LookupKeys.Ovens => await context.Ovens
+                .AsNoTracking()
+                .OrderBy(o => o.OvenId)
+                .Select(o => new LookupItem(o.OvenId, o.OvenId + " - " + o.Description))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false),
+
+            LookupKeys.Presses => await context.Presses
+                .AsNoTracking()
+                .Where(p => p.IsActive)
+                .OrderBy(p => p.PressId)
+                .Select(p => new LookupItem(p.PressId, p.PressId + " - " + p.Description))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false),
+
+            LookupKeys.Modules => await context.Modules
+                .AsNoTracking()
+                .OrderBy(m => m.ModuleId)
+                .Select(m => new LookupItem(m.ModuleId, m.ModuleId))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false),
+
+            _ => [],
+        };
+
+        cache.Set($"lookup:{lookupKey}", items, CacheLifetime);
+        return items;
+    }
+}

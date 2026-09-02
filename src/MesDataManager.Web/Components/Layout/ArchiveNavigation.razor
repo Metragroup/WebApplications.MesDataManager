@@ -1,0 +1,81 @@
+@inject IArchiveCatalog Catalog
+@inject IStringLocalizer<Strings> L
+@inject NavigationManager Navigation
+
+@*
+    Riproduce l'albero a due nodi dell'applicazione WinForms ("Archivi generali" e "Archivi"),
+    ma le voci non sono scritte a mano: arrivano dal catalogo, ordinate per nome tradotto.
+    Aggiungere un'anagrafica al catalogo la fa comparire qui senza toccare questo file.
+*@
+
+<div class="mes-nav">
+    <MudTextField @bind-Value="_filter"
+                  Placeholder="@L["SearchPlaceholder"]"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Outlined.Search"
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense"
+                  Immediate="true"
+                  Clearable="true"
+                  Class="mes-nav__filter" />
+
+    <MudNavMenu Dense="true" Rounded="false">
+        @foreach (var group in Groups)
+        {
+            var entries = VisibleEntries(group.Group);
+
+            @if (entries.Count > 0)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mes-nav__group">@L[group.LabelKey]</MudText>
+
+                @foreach (var entry in entries)
+                {
+                    <MudNavLink Href="@($"/anagrafiche/{entry.Key}")"
+                                Match="NavLinkMatch.All"
+                                Icon="@IconFor(entry)">
+                        @L[entry.NameKey]
+                    </MudNavLink>
+                }
+            }
+        }
+    </MudNavMenu>
+
+    @if (Groups.All(g => VisibleEntries(g.Group).Count == 0))
+    {
+        <MudText Typo="Typo.body2" Class="mes-nav__empty">@L["NoRecords"]</MudText>
+    }
+</div>
+
+@code {
+    private static readonly (ArchiveGroup Group, string LabelKey)[] Groups =
+    [
+        (ArchiveGroup.MasterData, "MasterDataLabel"),
+        (ArchiveGroup.Plant, "ArchiveLabel"),
+    ];
+
+    private string? _filter;
+
+    /// <summary>
+    /// Anagrafiche del gruppo che superano il filtro di ricerca, ordinate per nome nella lingua
+    /// corrente: con sedici voci l'ordine alfabetico e' il modo piu' rapido per trovarne una.
+    /// </summary>
+    private List<ArchiveDescriptor> VisibleEntries(ArchiveGroup group) =>
+    [
+        .. Catalog.All
+            .Where(d => d.Group == group)
+            .Where(d => string.IsNullOrWhiteSpace(_filter)
+                        || L[d.NameKey].Value.Contains(_filter, StringComparison.CurrentCultureIgnoreCase))
+            .OrderBy(d => L[d.NameKey].Value, StringComparer.CurrentCulture)
+    ];
+
+    /// <summary>
+    /// L'icona distingue a colpo d'occhio cosa si puo' fare: un lucchetto sulle tabelle in sola
+    /// lettura, una freccia di sincronizzazione su quelle allineate dall'ERP.
+    /// </summary>
+    private static string IconFor(ArchiveDescriptor descriptor) => descriptor.EditPolicy switch
+    {
+        ArchiveEditPolicy.ReadOnly => Icons.Material.Outlined.Lock,
+        ArchiveEditPolicy.MasterControlled => Icons.Material.Outlined.SyncAlt,
+        _ => Icons.Material.Outlined.TableRows,
+    };
+}

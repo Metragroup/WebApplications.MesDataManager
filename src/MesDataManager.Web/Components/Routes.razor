@@ -1,0 +1,25 @@
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @* La FallbackPolicy impostata in Program.cs reindirizza a Entra ID prima di
+                   arrivare qui: questo blocco copre il caso di utente autenticato ma senza
+                   il ruolo richiesto da una singola pagina. *@
+                <MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+                        @Localizer["AccessDenied"]
+                    </MudAlert>
+                </MudContainer>
+            </NotAuthorized>
+            <Authorizing>
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+            </Authorizing>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>
+
+@code {
+    [Inject]
+    private IStringLocalizer<Strings> Localizer { get; set; } = default!;
+}

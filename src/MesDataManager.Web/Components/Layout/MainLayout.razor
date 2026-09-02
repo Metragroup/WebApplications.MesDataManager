@@ -1,0 +1,113 @@
+@inherits LayoutComponentBase
+@inject IStringLocalizer<Strings> L
+@inject NavigationManager Navigation
+@inject IUserContext User
+@inject IConfiguration Configuration
+
+<MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider CloseButton="true" MaxWidth="MaxWidth.Medium" FullWidth="true" />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Dense="true">
+        <MudIconButton Icon="@Icons.Material.Outlined.Menu"
+                       Color="Color.Inherit"
+                       Edge="Edge.Start"
+                       aria-label="@L["NavArchives"]"
+                       OnClick="ToggleDrawer" />
+
+        <MudText Typo="Typo.h6" Class="ml-2">@L["AppTitle"]</MudText>
+
+        <MudSpacer />
+
+        <MudTooltip Text="@(_isDarkMode ? "Tema chiaro" : "Tema scuro")">
+            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
+                           Color="Color.Inherit"
+                           OnClick="@(() => _isDarkMode = !_isDarkMode)" />
+        </MudTooltip>
+
+        <MudMenu Icon="@Icons.Material.Outlined.Translate"
+                 Color="Color.Inherit"
+                 AriaLabel="@L["Language"]">
+            @foreach (var culture in Cultures)
+            {
+                <MudMenuItem OnClick="@(() => SwitchCulture(culture.Code))">
+                    @culture.Label
+                    @if (string.Equals(
+                        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName,
+                        culture.Code,
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        <MudIcon Icon="@Icons.Material.Outlined.Check" Size="Size.Small" Class="ml-2" />
+                    }
+                </MudMenuItem>
+            }
+        </MudMenu>
+
+        <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+            <ActivatorContent>
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Inherit"
+                           StartIcon="@Icons.Material.Outlined.AccountCircle">
+                    @User.DisplayName
+                </MudButton>
+            </ActivatorContent>
+            <ChildContent>
+                @if (Configuration.SupportsSignOut())
+                {
+                    <MudMenuItem Icon="@Icons.Material.Outlined.Logout"
+                                 Href="/MicrosoftIdentity/Account/SignOut"
+                                 ForceLoad="true">
+                        @L["SignOut"]
+                    </MudMenuItem>
+                }
+                else
+                {
+                    <MudMenuItem Icon="@Icons.Material.Outlined.Science" Disabled="true">
+                        Autenticazione in modalità sviluppo
+                    </MudMenuItem>
+                }
+        </MudMenu>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen"
+               Elevation="1"
+               ClipMode="DrawerClipMode.Always"
+               Variant="DrawerVariant.Responsive">
+        <ArchiveNavigation />
+    </MudDrawer>
+
+    <MudMainContent Class="mes-main">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private readonly MudTheme _theme = Theming.MesTheme.Build();
+
+    private static readonly (string Code, string Label)[] Cultures =
+    [
+        ("it", "Italiano"),
+        ("en", "English"),
+        ("fr", "Français"),
+    ];
+
+    private bool _drawerOpen = true;
+    private bool _isDarkMode;
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    /// <summary>
+    /// Il cambio lingua passa da un endpoint HTTP: la cultura del circuito Blazor Server e'
+    /// fissata all'avvio, quindi serve un ricaricamento vero della pagina.
+    /// </summary>
+    private void SwitchCulture(string culture)
+    {
+        var current = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var target = $"/culture/set?culture={Uri.EscapeDataString(culture)}" +
+                     $"&redirectUri={Uri.EscapeDataString("/" + current)}";
+
+        Navigation.NavigateTo(target, forceLoad: true);
+    }
+}
