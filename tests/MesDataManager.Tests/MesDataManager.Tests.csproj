@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>MesDataManager.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MesDataManager.Application\MesDataManager.Application.csproj" />
+    <ProjectReference Include="..\..\src\MesDataManager.Domain\MesDataManager.Domain.csproj" />
+    <ProjectReference Include="..\..\src\MesDataManager.Infrastructure\MesDataManager.Infrastructure.csproj" />
+    <!--
+      Serve per leggere i file di risorse: il catalogo dichiara chiavi di etichetta e il test
+      verifica che esistano davvero nei tre resx. Nessun componente viene istanziato.
+    -->
+    <ProjectReference Include="..\..\src\MesDataManager.Web\MesDataManager.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

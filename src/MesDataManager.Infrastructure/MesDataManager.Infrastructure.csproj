@@ -14,4 +14,10 @@
     <ProjectReference Include="..\MesDataManager.Domain\MesDataManager.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Conversione dei valori e composizione delle query restano interne: i test le
+         raggiungono senza doverle rendere pubbliche solo per poterle verificare. -->
+    <InternalsVisibleTo Include="MesDataManager.Tests" />
+  </ItemGroup>
+
 </Project>
