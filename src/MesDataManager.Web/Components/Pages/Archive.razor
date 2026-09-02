@@ -97,6 +97,7 @@ else
                      FixedHeader="true"
                      Height="calc(100vh - 260px)"
                      SortMode="SortMode.Multiple"
+                     @bind-RowsPerPage="_rowsPerPage"
                      RowClassFunc="@RowClass"
                      Elevation="0">
             <NoRecordsContent>
@@ -168,6 +169,7 @@ else
     private ArchiveDescriptor? _descriptor;
     private IReadOnlyList<ArchiveRow> _rows = [];
     private UserPermissions _permissions = UserPermissions.Anonymous;
+    private int _rowsPerPage = 25;
     private bool _loading;
     private bool _includeInactive;
     private string? _search;

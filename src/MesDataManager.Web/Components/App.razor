@@ -10,11 +10,13 @@
     <link rel="stylesheet" href="@Assets["css/app.css"]" />
 
     <title>MES Data Manager</title>
-    <HeadOutlet />
+    @* Il render mode si dichiara qui: in Program.cs viene soltanto reso disponibile.
+       Senza questa riga la pagina resta statica e nessun gestore di eventi viene eseguito. *@
+    <HeadOutlet @rendermode="InteractiveServer" />
 </head>
 
 <body>
-    <Routes />
+    <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
 </body>

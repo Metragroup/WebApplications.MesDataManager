@@ -30,6 +30,20 @@ altri consumatori.
 componenti accedono ai servizi applicativi per dependency injection, in-process. Non esiste
 un'API HTTP fra interfaccia e dati.
 
+**Dove si dichiara, e perche' e' facile sbagliare.** In `Program.cs`
+`AddInteractiveServerComponents()` e `AddInteractiveServerRenderMode()` rendono la modalita'
+**disponibile**, non attiva: da .NET 8 i componenti devono chiederla con `@rendermode`, e la
+dichiarazione sta su `<HeadOutlet>` e `<Routes>` in `Components/App.razor`.
+
+Ometterla non produce ne' errori di compilazione ne' errori a runtime. L'applicazione risponde,
+le pagine si disegnano e i dati si leggono — il rendering statico esegue `OnInitializedAsync` —
+ma non esiste nessun circuito, quindi **nessun gestore di eventi viene mai eseguito**: niente
+finestre di dialogo, niente paginazione, niente ricerca, niente interruttori. Sembra un guasto
+dei singoli comandi, ed e' invece l'assenza di una riga.
+
+Come riconoscerlo in un minuto: nell'HTML servito un componente interattivo lascia un commento
+`<!--Blazor:{"type":"server",...}-->`. Se non c'e', la pagina e' statica.
+
 **Perche'.** L'applicazione e' uno strumento interno di stabilimento: postazioni di reparto e
 scrivanie sulla stessa rete del database. In questo scenario Server e' la scelta che porta meno
 parti mobili — nessun layer HTTP da progettare, autenticare e versionare, latenza minima verso
