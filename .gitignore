@@ -6,15 +6,29 @@ logs/
 *.user
 *.suo
 .vs/
-.vscode/
 
 ## NuGet
 *.nupkg
 packages/
 !packages/build/
 
-## Rider / VS Code
+## Rider
 .idea/
+
+## VS Code: si versiona come si lavora, non come si ha configurato l'editor.
+## Serve la forma ".vscode/*" e non ".vscode/": su una cartella esclusa Git non entra,
+## e le eccezioni sotto non verrebbero nemmeno valutate.
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
 
 ## Segreti locali
 appsettings.*.local.json
+
+## Il codice WinForms resta nel suo repo: si consulta, non si copia qui
+legacy/
+winforms/
+
+## Area di lavoro VS Code: contiene percorsi locali
+*.code-workspace

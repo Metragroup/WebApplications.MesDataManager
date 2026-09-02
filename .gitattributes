@@ -1,0 +1,25 @@
+# Terminazioni di riga decise dal repository e non dalla configurazione di chi clona.
+# Senza questo file il risultato dipende da "core.autocrlf" di ciascuno: chi ha LF nel
+# proprio albero di lavoro vede "dotnet format" segnalare ogni riga di ogni file.
+#
+# Nel repository il testo e' normalizzato a LF; nell'albero di lavoro viene scritto CRLF,
+# coerentemente con "end_of_line = crlf" dell'.editorconfig.
+* text=auto eol=crlf
+
+# Diff piu' leggibili: Git riconosce la sintassi e indica la classe o il metodo nell'intestazione.
+*.cs      text diff=csharp
+*.csproj  text
+*.props   text
+*.sln     text
+*.razor   text
+*.resx    text
+*.md      text
+*.json    text
+
+# File non testuali: nessuna conversione, nessun tentativo di diff.
+*.png     binary
+*.jpg     binary
+*.ico     binary
+*.woff    binary
+*.woff2   binary
+*.dacpac  binary

@@ -1,0 +1,8 @@
+{
+  // Senza queste, "launch.json" non serve a niente: il tipo di avvio "coreclr" e il
+  // Test Explorer arrivano da qui. VS Code le propone all'apertura della cartella.
+  "recommendations": [
+    "ms-dotnettools.csdevkit",
+    "ms-dotnettools.csharp"
+  ]
+}
