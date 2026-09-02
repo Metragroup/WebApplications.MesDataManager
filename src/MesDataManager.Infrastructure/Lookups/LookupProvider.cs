@@ -11,7 +11,9 @@ namespace MesDataManager.Infrastructure.Lookups;
 /// cambiano raramente, quindi restano in cache per pochi minuti: evita una query a ogni
 /// apertura del form senza rischiare di mostrare dati troppo vecchi.
 /// </summary>
-public sealed class LookupProvider(MesDbContext context, IMemoryCache cache) : ILookupProvider
+public sealed class LookupProvider(
+    IDbContextFactory<MesDbContext> contextFactory,
+    IMemoryCache cache) : ILookupProvider
 {
     private static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(5);
 
@@ -23,6 +25,10 @@ public sealed class LookupProvider(MesDbContext context, IMemoryCache cache) : I
         {
             return cached;
         }
+
+        await using var context = await contextFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         IReadOnlyList<LookupItem> items = lookupKey switch
         {

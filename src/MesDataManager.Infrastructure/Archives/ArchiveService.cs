@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using MesDataManager.Application.Archives;
 using MesDataManager.Application.Security;
 using MesDataManager.Domain.Abstractions;
@@ -13,9 +15,14 @@ namespace MesDataManager.Infrastructure.Archives;
 /// Implementazione unica del CRUD sulle anagrafiche. Concentra qui le tre cose che la UI non
 /// deve conoscere: i permessi dell'utente, le regole di business ereditate dall'applicazione
 /// WinForms e la traduzione degli errori di SQL Server in messaggi comprensibili.
+/// <para>
+/// Ogni operazione crea il proprio <see cref="MesDbContext"/> dalla factory e lo smaltisce:
+/// in Blazor Server un contesto con ambito vivrebbe quanto la sessione, condiviso fra tutti
+/// i componenti della pagina.
+/// </para>
 /// </summary>
 public sealed class ArchiveService(
-    MesDbContext context,
+    IDbContextFactory<MesDbContext> contextFactory,
     IArchiveCatalog catalog,
     IUserContext user,
     ILogger<ArchiveService> logger) : IArchiveService
@@ -26,11 +33,16 @@ public sealed class ArchiveService(
         CancellationToken cancellationToken = default)
     {
         var descriptor = Resolve(archiveKey);
+        var permissions = await user.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
 
-        if (!user.CanRead)
+        if (!permissions.CanRead)
         {
             throw ArchiveException.Forbidden();
         }
+
+        await using var context = await contextFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         return await EntityAccessorFactory
             .For(descriptor.EntityType)
@@ -38,11 +50,18 @@ public sealed class ArchiveService(
             .ConfigureAwait(false);
     }
 
-    public Task<ArchiveRow> CreateTemplateAsync(
+    public async Task<ArchiveRow> CreateTemplateAsync(
         string archiveKey,
         CancellationToken cancellationToken = default)
     {
         var descriptor = Resolve(archiveKey);
+        var permissions = await user.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
+
+        if (!descriptor.AllowsInsert || !permissions.CanInsert)
+        {
+            throw ArchiveException.Forbidden();
+        }
+
         var row = ArchiveRow.Empty();
 
         foreach (var field in descriptor.Fields)
@@ -58,7 +77,7 @@ public sealed class ArchiveService(
             row[nameof(IActivatable.IsActive)] = true;
         }
 
-        return Task.FromResult(row);
+        return row;
     }
 
     public async Task InsertAsync(
@@ -67,13 +86,18 @@ public sealed class ArchiveService(
         CancellationToken cancellationToken = default)
     {
         var descriptor = Resolve(archiveKey);
+        var permissions = await user.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
 
-        if (!descriptor.AllowsInsert || !user.CanInsert)
+        if (!descriptor.AllowsInsert || !permissions.CanInsert)
         {
             throw ArchiveException.Forbidden();
         }
 
         Validate(descriptor, row, isNewRecord: true);
+
+        await using var context = await contextFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         var accessor = EntityAccessorFactory.For(descriptor.EntityType);
         var entity = accessor.CreateInstance();
@@ -87,12 +111,12 @@ public sealed class ArchiveService(
         }
 
         accessor.Add(context, entity);
-        await SaveAsync(descriptor, cancellationToken).ConfigureAwait(false);
+        await SaveAsync(context, descriptor, cancellationToken).ConfigureAwait(false);
 
         logger.LogInformation(
             "Anagrafica {Archive}: inserito un record da parte di {User}.",
             descriptor.Key,
-            user.UserName);
+            permissions.UserName);
     }
 
     public async Task UpdateAsync(
@@ -101,13 +125,21 @@ public sealed class ArchiveService(
         CancellationToken cancellationToken = default)
     {
         var descriptor = Resolve(archiveKey);
+        var permissions = await user.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
 
-        if (!descriptor.AllowsUpdate || !user.CanUpdate)
+        if (!descriptor.AllowsUpdate || !permissions.CanUpdate)
         {
             throw ArchiveException.Forbidden();
         }
 
+        await using var context = await contextFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var accessor = EntityAccessorFactory.For(descriptor.EntityType);
+
+        // L'entita' va caricata tracciata: la modifica si esprime mutando le proprieta' e
+        // lasciando che il change tracker deduca le colonne da aggiornare.
         var entity = await accessor.FindAsync(context, descriptor, row, cancellationToken).ConfigureAwait(false)
             ?? throw ArchiveException.NotFound();
 
@@ -122,12 +154,12 @@ public sealed class ArchiveService(
             }
         }
 
-        await SaveAsync(descriptor, cancellationToken).ConfigureAwait(false);
+        await SaveAsync(context, descriptor, cancellationToken).ConfigureAwait(false);
 
         logger.LogInformation(
             "Anagrafica {Archive}: modificato un record da parte di {User}.",
             descriptor.Key,
-            user.UserName);
+            permissions.UserName);
     }
 
     public async Task DeleteAsync(
@@ -136,23 +168,28 @@ public sealed class ArchiveService(
         CancellationToken cancellationToken = default)
     {
         var descriptor = Resolve(archiveKey);
+        var permissions = await user.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
 
-        if (!descriptor.AllowsDelete || !user.CanDelete)
+        if (!descriptor.AllowsDelete || !permissions.CanDelete)
         {
             throw ArchiveException.Forbidden();
         }
+
+        await using var context = await contextFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         var accessor = EntityAccessorFactory.For(descriptor.EntityType);
         var entity = await accessor.FindAsync(context, descriptor, row, cancellationToken).ConfigureAwait(false)
             ?? throw ArchiveException.NotFound();
 
         accessor.Remove(context, entity);
-        await SaveAsync(descriptor, cancellationToken).ConfigureAwait(false);
+        await SaveAsync(context, descriptor, cancellationToken).ConfigureAwait(false);
 
         logger.LogInformation(
             "Anagrafica {Archive}: eliminato un record da parte di {User}.",
             descriptor.Key,
-            user.UserName);
+            permissions.UserName);
     }
 
     // ------------------------------------------------------------------ regole
@@ -161,7 +198,9 @@ public sealed class ArchiveService(
         catalog.Find(archiveKey)
         ?? throw new ArchiveException(ArchiveErrorKind.NotFound, "ArchiveNotFound", archiveKey);
 
-    /// <summary>Obbligatorieta' e lunghezze massime, allineate ai vincoli delle colonne.</summary>
+    /// <summary>
+    /// Obbligatorieta', lunghezze massime e intervalli, allineati ai vincoli delle colonne.
+    /// </summary>
     private static void Validate(ArchiveDescriptor descriptor, ArchiveRow row, bool isNewRecord)
     {
         foreach (var field in descriptor.Fields)
@@ -182,6 +221,43 @@ public sealed class ArchiveService(
             {
                 throw ArchiveException.TooLong(field.Name, max);
             }
+
+            EnforceIntegerRange(descriptor, field, value);
+        }
+    }
+
+    /// <summary>
+    /// Molte chiavi e tutte le posizioni sono <c>smallint</c>. L'editor numerico non conosce il
+    /// tipo della colonna, quindi un valore fuori intervallo arriverebbe fin qui e farebbe
+    /// fallire la conversione con un errore che la UI non sa tradurre.
+    /// </summary>
+    private static void EnforceIntegerRange(ArchiveDescriptor descriptor, ArchiveField field, object? value)
+    {
+        if (field.Kind is not ArchiveFieldKind.Integer || value is null)
+        {
+            return;
+        }
+
+        var property = descriptor.EntityType.GetProperty(field.Name);
+        if (property is null || FieldValueConverter.IntegerRange(property.PropertyType) is not { } range)
+        {
+            return;
+        }
+
+        decimal numeric;
+        try
+        {
+            numeric = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex) when (ex is FormatException or InvalidCastException or OverflowException)
+        {
+            throw new ArchiveException(
+                ArchiveErrorKind.Validation, "InvalidValue", field.Name, innerException: ex);
+        }
+
+        if (numeric < range.Minimum || numeric > range.Maximum)
+        {
+            throw ArchiveException.OutOfRange(field.Name, range.Minimum, range.Maximum);
         }
     }
 
@@ -219,14 +295,27 @@ public sealed class ArchiveService(
             return;
         }
 
-        property.SetValue(entity, FieldValueConverter.Coerce(value, property.PropertyType));
+        try
+        {
+            property.SetValue(entity, FieldValueConverter.Coerce(value, property.PropertyType));
+        }
+        catch (Exception ex) when (ex is FormatException or InvalidCastException or OverflowException)
+        {
+            // Rete di sicurezza per i chiamanti che non passano dalla UI: un valore non
+            // convertibile e' un errore di validazione, non un guasto dell'applicazione.
+            throw new ArchiveException(
+                ArchiveErrorKind.Validation, "InvalidValue", fieldName, innerException: ex);
+        }
     }
 
     /// <summary>
     /// Salva e traduce i codici di errore di SQL Server: senza questo passaggio l'operatore
     /// vedrebbe il messaggio grezzo del provider al posto della causa reale.
     /// </summary>
-    private async Task SaveAsync(ArchiveDescriptor descriptor, CancellationToken cancellationToken)
+    private async Task SaveAsync(
+        MesDbContext context,
+        ArchiveDescriptor descriptor,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -249,12 +338,6 @@ public sealed class ArchiveService(
                 _ => new ArchiveException(
                     ArchiveErrorKind.Unknown, "SaveFailed", innerException: ex),
             };
-        }
-        finally
-        {
-            // Il contesto e' per-richiesta ma il circuito Blazor Server e' longevo: le entita'
-            // tracciate vengono liberate a ogni operazione per non far crescere il change tracker.
-            context.ChangeTracker.Clear();
         }
     }
 

@@ -50,7 +50,7 @@
                 <MudButton Variant="Variant.Text"
                            Color="Color.Inherit"
                            StartIcon="@Icons.Material.Outlined.AccountCircle">
-                    @User.DisplayName
+                    @(_user.DisplayName ?? _user.UserName)
                 </MudButton>
             </ActivatorContent>
             <ChildContent>
@@ -68,6 +68,7 @@
                         Autenticazione in modalità sviluppo
                     </MudMenuItem>
                 }
+            </ChildContent>
         </MudMenu>
     </MudAppBar>
 
@@ -95,6 +96,10 @@
 
     private bool _drawerOpen = true;
     private bool _isDarkMode;
+    private UserPermissions _user = UserPermissions.Anonymous;
+
+    protected override async Task OnInitializedAsync() =>
+        _user = await User.GetCurrentAsync();
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 

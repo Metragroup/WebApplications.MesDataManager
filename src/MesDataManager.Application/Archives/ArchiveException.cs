@@ -39,6 +39,13 @@ public sealed class ArchiveException(
     public static ArchiveException TooLong(string field, int maxLength) =>
         new(ArchiveErrorKind.Validation, "MaxLengthExceeded", field, [maxLength]);
 
+    /// <summary>
+    /// Il valore non entra nel tipo della colonna. Senza questo controllo la conversione
+    /// lanciava <see cref="OverflowException"/>, che la UI non sa tradurre.
+    /// </summary>
+    public static ArchiveException OutOfRange(string field, object minimum, object maximum) =>
+        new(ArchiveErrorKind.Validation, "ValueOutOfRange", field, [minimum, maximum]);
+
     public static ArchiveException Forbidden() =>
         new(ArchiveErrorKind.Forbidden, "AccessDenied");
 

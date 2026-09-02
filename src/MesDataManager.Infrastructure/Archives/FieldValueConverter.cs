@@ -50,6 +50,28 @@ internal static class FieldValueConverter
             : Convert.ChangeType(value, effectiveType, CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// Intervallo ammesso dal tipo intero della colonna, oppure <c>null</c> se il tipo non e'
+    /// intero. Serve a validare prima di convertire: <see cref="Convert.ChangeType(object?, Type)"/>
+    /// su un valore troppo grande lancia <see cref="OverflowException"/>.
+    /// </summary>
+    public static (decimal Minimum, decimal Maximum)? IntegerRange(Type targetType)
+    {
+        var effectiveType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+        return true switch
+        {
+            _ when effectiveType == typeof(byte) => (byte.MinValue, byte.MaxValue),
+            _ when effectiveType == typeof(sbyte) => (sbyte.MinValue, sbyte.MaxValue),
+            _ when effectiveType == typeof(short) => (short.MinValue, short.MaxValue),
+            _ when effectiveType == typeof(ushort) => (ushort.MinValue, ushort.MaxValue),
+            _ when effectiveType == typeof(int) => (int.MinValue, int.MaxValue),
+            _ when effectiveType == typeof(uint) => (uint.MinValue, uint.MaxValue),
+            _ when effectiveType == typeof(long) => (long.MinValue, long.MaxValue),
+            _ => null,
+        };
+    }
+
     /// <summary>Valore iniziale sensato per un campo di un nuovo record.</summary>
     public static object? DefaultFor(Type targetType)
     {

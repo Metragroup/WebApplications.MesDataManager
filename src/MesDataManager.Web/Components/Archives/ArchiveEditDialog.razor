@@ -1,6 +1,7 @@
 @inject IStringLocalizer<Strings> L
 @inject IArchiveService Archives
 @inject ISnackbar Snackbar
+@inject ILogger<ArchiveEditDialog> Logger
 
 <MudDialog>
     <TitleContent>
@@ -121,14 +122,14 @@
         catch (ArchiveException ex)
         {
             // Il messaggio arriva come chiave di risorsa, cosi' resta nella lingua dell'utente.
-            _error = ex.MessageArguments.Length == 0
-                ? L[ex.MessageKey]
-                : L[ex.MessageKey, ex.MessageArguments];
-
-            if (ex.Field is not null)
-            {
-                _error = $"{L[ex.Field]}: {_error}";
-            }
+            _error = ex.Localize(L);
+        }
+        catch (Exception ex)
+        {
+            // La finestra resta aperta con i dati inseriti: chiudere il circuito qui
+            // significherebbe far ribattere tutto all'operatore.
+            Logger.LogError(ex, "Salvataggio su {Archive} non riuscito.", Descriptor.Key);
+            _error = L["UnexpectedError"];
         }
         finally
         {

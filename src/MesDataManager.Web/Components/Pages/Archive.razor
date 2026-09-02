@@ -6,6 +6,7 @@
 @inject IStringLocalizer<Strings> L
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
+@inject ILogger<Archive> Logger
 
 @*
     Unica pagina per tutte le anagrafiche. Colonne, editor e permessi derivano dal descrittore,
@@ -75,7 +76,7 @@ else
                 @L["RefreshButton"]
             </MudButton>
 
-            @if (_descriptor.AllowsInsert && User.CanInsert)
+            @if (_descriptor.AllowsInsert && _permissions.CanInsert)
             {
                 <MudButton StartIcon="@Icons.Material.Outlined.Add"
                            Variant="Variant.Filled"
@@ -133,14 +134,14 @@ else
                 {
                     <TemplateColumn T="ArchiveRow" Sortable="false" CellClass="mes-cell--actions">
                         <CellTemplate>
-                            @if (_descriptor.AllowsUpdate && User.CanUpdate)
+                            @if (_descriptor.AllowsUpdate && _permissions.CanUpdate)
                             {
                                 <MudIconButton Icon="@Icons.Material.Outlined.Edit"
                                                Size="Size.Small"
                                                aria-label="@L["EditRecord"]"
                                                OnClick="@(() => EditAsync(context.Item))" />
                             }
-                            @if (_descriptor.AllowsDelete && User.CanDelete)
+                            @if (_descriptor.AllowsDelete && _permissions.CanDelete)
                             {
                                 <MudIconButton Icon="@Icons.Material.Outlined.Delete"
                                                Size="Size.Small"
@@ -166,9 +167,18 @@ else
 
     private ArchiveDescriptor? _descriptor;
     private IReadOnlyList<ArchiveRow> _rows = [];
+    private UserPermissions _permissions = UserPermissions.Anonymous;
     private bool _loading;
     private bool _includeInactive;
     private string? _search;
+
+    /// <summary>
+    /// I permessi si leggono una volta per sessione della pagina: sono un'istantanea dei claim,
+    /// non cambiano mentre la pagina e' aperta. Il servizio li ricontrolla comunque a ogni
+    /// operazione, quindi qui servono solo a non mostrare pulsanti che darebbero un rifiuto.
+    /// </summary>
+    protected override async Task OnInitializedAsync() =>
+        _permissions = await User.GetCurrentAsync();
 
     protected override async Task OnParametersSetAsync()
     {
@@ -190,7 +200,7 @@ else
 
     private async Task ReloadAsync()
     {
-        if (_descriptor is null)
+        if (_descriptor is not { } descriptor)
         {
             return;
         }
@@ -200,12 +210,20 @@ else
         try
         {
             _rows = await Archives.GetRowsAsync(
-                _descriptor.Key,
+                descriptor.Key,
                 new ArchiveQuery(_includeInactive, _search));
         }
         catch (ArchiveException ex)
         {
-            Snackbar.Add(L[ex.MessageKey], Severity.Error);
+            Snackbar.Add(ex.Localize(L), Severity.Error);
+            _rows = [];
+        }
+        catch (Exception ex)
+        {
+            // Un guasto non previsto — connessione caduta, timeout di SQL Server — non deve
+            // abbattere il circuito: l'operatore deve poter riprovare dalla stessa pagina.
+            Logger.LogError(ex, "Lettura dell'anagrafica {Archive} non riuscita.", descriptor.Key);
+            Snackbar.Add(L["UnexpectedError"], Severity.Error);
             _rows = [];
         }
         finally
@@ -222,13 +240,20 @@ else
 
     private async Task AddAsync()
     {
-        if (_descriptor is null)
+        if (_descriptor is not { } descriptor)
         {
             return;
         }
 
-        var template = await Archives.CreateTemplateAsync(_descriptor.Key);
-        await ShowEditorAsync(template, isNewRecord: true);
+        try
+        {
+            var template = await Archives.CreateTemplateAsync(descriptor.Key);
+            await ShowEditorAsync(template, isNewRecord: true);
+        }
+        catch (ArchiveException ex)
+        {
+            Snackbar.Add(ex.Localize(L), Severity.Error);
+        }
     }
 
     private Task EditAsync(ArchiveRow row) =>
@@ -260,7 +285,7 @@ else
 
     private async Task DeleteAsync(ArchiveRow row)
     {
-        if (_descriptor is null)
+        if (_descriptor is not { } descriptor)
         {
             return;
         }
@@ -278,13 +303,18 @@ else
 
         try
         {
-            await Archives.DeleteAsync(_descriptor.Key, row);
+            await Archives.DeleteAsync(descriptor.Key, row);
             Snackbar.Add(L["RecordDeleted"], Severity.Success);
             await ReloadAsync();
         }
         catch (ArchiveException ex)
         {
-            Snackbar.Add(L[ex.MessageKey], Severity.Error);
+            Snackbar.Add(ex.Localize(L), Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Eliminazione da {Archive} non riuscita.", descriptor.Key);
+            Snackbar.Add(L["UnexpectedError"], Severity.Error);
         }
     }
 

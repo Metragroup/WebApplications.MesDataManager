@@ -79,8 +79,12 @@ public static class AuthenticationSetup
         });
 
         services.AddCascadingAuthenticationState();
+
+        // Serve a Microsoft.Identity.Web per gli endpoint di accesso e uscita. Non va usato
+        // per leggere l'utente dai componenti: vedi AuthenticationStateUserContext.
         services.AddHttpContextAccessor();
-        services.AddScoped<IUserContext, EntraUserContext>();
+
+        services.AddScoped<IUserContext, AuthenticationStateUserContext>();
 
         return services;
     }

@@ -21,17 +21,28 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("MesDatabase")
-            ?? throw new InvalidOperationException(
-                "Manca la stringa di connessione 'MesDatabase' nella configurazione.");
+        var connectionString = configuration.GetConnectionString("MesDatabase");
 
-        services.AddDbContext<MesDbContext>(options => options
+        // Il valore predefinito in appsettings.json e' una stringa vuota, non un'assenza:
+        // controllare solo il null lascerebbe passare la configurazione non compilata e
+        // l'errore arriverebbe alla prima query, come "ConnectionString non inizializzata".
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Manca la stringa di connessione 'MesDatabase'. In sviluppo impostarla con " +
+                "'dotnet user-secrets set \"ConnectionStrings:MesDatabase\" \"...\"' dalla " +
+                "cartella src\\MesDataManager.Web.");
+        }
+
+        // Factory e non contesto registrato: in Blazor Server i servizi con ambito vivono
+        // quanto il circuito, cioe' quanto l'intera sessione dell'utente. Un DbContext con
+        // quella durata sarebbe condiviso fra tutti i componenti della pagina — due
+        // operazioni sovrapposte lo fanno cadere — e terrebbe aperta la connessione.
+        // Con la factory ogni operazione crea e smaltisce il proprio contesto.
+        services.AddDbContextFactory<MesDbContext>(options => options
             .UseSqlServer(connectionString, sql => sql
                 .EnableRetryOnFailure()
-                .CommandTimeout(30))
-            // Il database non e' gestito dall'applicazione: qualunque scostamento dello schema
-            // deve emergere come errore in fase di query, non essere corretto in automatico.
-            .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
+                .CommandTimeout(30)));
 
         services.AddMemoryCache();
 
