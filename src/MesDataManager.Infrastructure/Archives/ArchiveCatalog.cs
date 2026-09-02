@@ -246,12 +246,19 @@ public sealed class ArchiveCatalog : IArchiveCatalog
 
         // Compare fra gli archivi generali ma non ha ne' Position ne' IsActive:
         // e' una tabella gestita interamente dallo stabilimento.
+        //
+        // Eliminazione disabilitata: la tabella e' referenziata da
+        // Press.BatchDowntime.FailureType e History._BatchDowntime.FailureType (milioni di
+        // righe di fermi macchina) ma senza vincolo di chiave esterna, e con tipi di colonna
+        // diversi — tinyint da un lato, smallint dall'altro. Un DELETE riuscirebbe e
+        // lascerebbe orfano lo storico dei fermi. Vedi docs/decisioni-aperte.md, voce A5.
         new ArchiveDescriptor
         {
             Key = "PressFailureType",
             EntityType = typeof(PressFailureType),
             NameKey = "PressFailureTypeArchive",
             Group = ArchiveGroup.MasterData,
+            PreventDelete = true,
             DefaultSort = [nameof(PressFailureType.Description)],
             SearchableFields = [nameof(PressFailureType.Description)],
             Fields =

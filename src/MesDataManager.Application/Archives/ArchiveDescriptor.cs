@@ -58,13 +58,25 @@ public sealed class ArchiveDescriptor
     /// <summary>L'entita' ha una colonna IsActive_Master governata dall'ERP.</summary>
     public bool HasMasterFlag { get; init; }
 
+    /// <summary>
+    /// Vieta l'eliminazione anche dove la policy la prevederebbe.
+    /// <para>
+    /// Serve per le tabelle referenziate dai dati di produzione **senza** un vincolo di chiave
+    /// esterna a database: lì il `DELETE` non verrebbe respinto da nessuno e lascerebbe
+    /// riferimenti orfani nello storico. E' un fatto sullo schema, non sul modo in cui
+    /// l'anagrafica e' governata, e per questo sta fuori da <see cref="ArchiveEditPolicy"/>:
+    /// il giorno in cui il vincolo viene aggiunto si toglie questa riga e nient'altro.
+    /// </para>
+    /// </summary>
+    public bool PreventDelete { get; init; }
+
     public IEnumerable<ArchiveField> KeyFields => Fields.Where(f => f.IsKey);
 
     public IEnumerable<ArchiveField> GridFields => Fields.Where(f => f.ShowInGrid);
 
     public bool AllowsInsert => EditPolicy is ArchiveEditPolicy.Full;
 
-    public bool AllowsDelete => EditPolicy is ArchiveEditPolicy.Full;
+    public bool AllowsDelete => EditPolicy is ArchiveEditPolicy.Full && !PreventDelete;
 
     public bool AllowsUpdate => EditPolicy is ArchiveEditPolicy.Full or ArchiveEditPolicy.MasterControlled;
 
