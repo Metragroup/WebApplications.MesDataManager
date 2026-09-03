@@ -2,11 +2,11 @@
 @using System.Diagnostics
 @inject IStringLocalizer<Strings> L
 
-<PageTitle>@L["SaveFailed"]</PageTitle>
+<PageTitle>@L["Error.SaveFailed"]</PageTitle>
 
 <div class="mes-page">
     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
-        <MudText Typo="Typo.body1">@L["SaveFailed"]</MudText>
+        <MudText Typo="Typo.body1">@L["Error.SaveFailed"]</MudText>
         @if (RequestId is not null)
         {
             <MudText Typo="Typo.caption" Class="mes-cell--code">@RequestId</MudText>

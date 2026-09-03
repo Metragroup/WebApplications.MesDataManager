@@ -94,15 +94,16 @@ public sealed class ArchiveDescriptorTests
     [Fact]
     public void L_etichetta_ripiega_sul_nome_del_campo()
     {
-        Assert.Equal("Description", Description.ResolvedLabelKey);
-        Assert.Equal("IsActive_Master", (Computed with { LabelKey = "IsActive_Master" }).ResolvedLabelKey);
+        Assert.Equal("Field.Description", Description.ResolvedLabelKey);
+        Assert.Equal(
+            "Field.IsActive_Master",
+            (Computed with { LabelKey = "IsActive_Master" }).ResolvedLabelKey);
     }
 
     private static ArchiveDescriptor Describe(ArchiveEditPolicy policy, bool preventDelete = false) => new()
     {
         Key = "Prova",
         EntityType = typeof(object),
-        NameKey = "Prova",
         Group = ArchiveGroup.MasterData,
         EditPolicy = policy,
         PreventDelete = preventDelete,

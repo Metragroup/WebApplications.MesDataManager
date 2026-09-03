@@ -3,10 +3,10 @@ namespace MesDataManager.Application.Archives;
 /// <summary>Nodo dell'albero di navigazione in cui compare l'anagrafica.</summary>
 public enum ArchiveGroup
 {
-    /// <summary>"Archivi generali": tabelle di causali, in gran parte allineate dall'ERP.</summary>
+    /// <summary>"Anagrafiche di gruppo": tabelle valide per tutte le sedi, in gran parte allineate dall'ERP.</summary>
     MasterData,
 
-    /// <summary>"Archivi": tabelle gestite interamente dallo stabilimento.</summary>
+    /// <summary>"Anagrafiche di impianto": tabelle gestite interamente dallo stabilimento.</summary>
     Plant,
 }
 
@@ -37,8 +37,12 @@ public sealed class ArchiveDescriptor
 
     public required Type EntityType { get; init; }
 
-    /// <summary>Chiave di risorsa del nome mostrato nel menu e nel titolo di pagina.</summary>
-    public required string NameKey { get; init; }
+    /// <summary>
+    /// Chiave di risorsa del nome mostrato nel menu e nel titolo di pagina. Si ricava da
+    /// <see cref="Key"/>: il gruppo <c>Archive.</c> tiene i nomi delle anagrafiche separati
+    /// dalle etichette dei campi, quindi non serve dichiararla ne' distinguerla a mano.
+    /// </summary>
+    public string NameKey => ResourceKeys.Archive(Key);
 
     public required ArchiveGroup Group { get; init; }
 

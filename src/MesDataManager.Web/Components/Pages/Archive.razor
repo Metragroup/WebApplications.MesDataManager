@@ -15,11 +15,11 @@
 
 @if (_descriptor is null)
 {
-    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">@L["SelectArchivePrompt"]</MudAlert>
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">@L["Msg.SelectArchivePrompt"]</MudAlert>
 }
 else
 {
-    <PageTitle>@L[_descriptor.NameKey] &middot; @L["AppTitle"]</PageTitle>
+    <PageTitle>@L[_descriptor.NameKey] &middot; @L["App.Title"]</PageTitle>
 
     <div class="mes-page">
         <header class="mes-page__head">
@@ -32,7 +32,7 @@ else
                          Size="Size.Small"
                          Color="Color.Default"
                          Variant="Variant.Outlined">
-                    @L["ArchiveLabel"]
+                    @L["Msg.ReadOnlyArchive"]
                 </MudChip>
             }
         </header>
@@ -43,13 +43,13 @@ else
                       Variant="Variant.Outlined"
                       Dense="true"
                       Class="mb-3">
-                @L["MasterLockedHint"]
+                @L["Msg.MasterLockedHint"]
             </MudAlert>
         }
 
         <MudPaper Elevation="0" Class="mes-toolbar">
             <MudTextField @bind-Value="_search"
-                          Placeholder="@L["SearchPlaceholder"]"
+                          Placeholder="@L["Msg.SearchPlaceholder"]"
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Outlined.Search"
                           Variant="Variant.Outlined"
@@ -64,7 +64,7 @@ else
                 <MudSwitch T="bool"
                            Value="_includeInactive"
                            ValueChanged="OnIncludeInactiveChanged"
-                           Label="@L["ShowInactive"]"
+                           Label="@L["Action.ShowInactive"]"
                            Color="Color.Primary" />
             }
 
@@ -73,7 +73,7 @@ else
             <MudButton StartIcon="@Icons.Material.Outlined.Refresh"
                        Variant="Variant.Text"
                        OnClick="ReloadAsync">
-                @L["RefreshButton"]
+                @L["Action.Refresh"]
             </MudButton>
 
             @if (_descriptor.AllowsInsert && _permissions.CanInsert)
@@ -82,12 +82,19 @@ else
                            Variant="Variant.Filled"
                            Color="Color.Primary"
                            OnClick="AddAsync">
-                    @L["NewButton"]
+                    @L["Action.New"]
                 </MudButton>
             }
         </MudPaper>
 
+        @*
+            La chiave lega la griglia all'anagrafica: cambiando tabella ne nasce una nuova.
+            Senza, MudDataGrid tiene l'elenco delle colonne che ha gia' registrato e accoda in
+            fondo solo quelle nuove: passando da un'anagrafica con poche colonne a una con
+            molte, la colonna dei comandi resta all'indice vecchio e finisce in mezzo.
+        *@
         <MudDataGrid T="ArchiveRow"
+                     @key="_descriptor.Key"
                      Items="_rows"
                      Loading="_loading"
                      Dense="true"
@@ -95,13 +102,13 @@ else
                      Striped="true"
                      Bordered="false"
                      FixedHeader="true"
-                     Height="calc(100vh - 260px)"
+                     Class="mes-grid"
                      SortMode="SortMode.Multiple"
                      @bind-RowsPerPage="_rowsPerPage"
                      RowClassFunc="@RowClass"
                      Elevation="0">
             <NoRecordsContent>
-                <MudText Typo="Typo.body2" Class="pa-6">@L["NoRecords"]</MudText>
+                <MudText Typo="Typo.body2" Class="pa-6">@L["Msg.NoRecords"]</MudText>
             </NoRecordsContent>
 
             <Columns>
@@ -139,7 +146,7 @@ else
                             {
                                 <MudIconButton Icon="@Icons.Material.Outlined.Edit"
                                                Size="Size.Small"
-                                               aria-label="@L["EditRecord"]"
+                                               aria-label="@L["Action.EditRecord"]"
                                                OnClick="@(() => EditAsync(context.Item))" />
                             }
                             @if (_descriptor.AllowsDelete && _permissions.CanDelete)
@@ -147,7 +154,7 @@ else
                                 <MudIconButton Icon="@Icons.Material.Outlined.Delete"
                                                Size="Size.Small"
                                                Color="Color.Error"
-                                               aria-label="@L["DeleteRecord"]"
+                                               aria-label="@L["Action.DeleteRecord"]"
                                                OnClick="@(() => DeleteAsync(context.Item))" />
                             }
                         </CellTemplate>
@@ -225,7 +232,7 @@ else
             // Un guasto non previsto — connessione caduta, timeout di SQL Server — non deve
             // abbattere il circuito: l'operatore deve poter riprovare dalla stessa pagina.
             Logger.LogError(ex, "Lettura dell'anagrafica {Archive} non riuscita.", descriptor.Key);
-            Snackbar.Add(L["UnexpectedError"], Severity.Error);
+            Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
             _rows = [];
         }
         finally
@@ -293,10 +300,10 @@ else
         }
 
         var confirmed = await Dialogs.ShowMessageBoxAsync(
-            L["DeleteConfirmTitle"],
-            L["DeleteConfirmText"],
-            yesText: L["DeleteButton"],
-            cancelText: L["CancelButton"]);
+            L["Msg.DeleteConfirmTitle"],
+            L["Msg.DeleteConfirmText"],
+            yesText: L["Action.Delete"],
+            cancelText: L["Action.Cancel"]);
 
         if (confirmed is not true)
         {
@@ -306,7 +313,7 @@ else
         try
         {
             await Archives.DeleteAsync(descriptor.Key, row);
-            Snackbar.Add(L["RecordDeleted"], Severity.Success);
+            Snackbar.Add(L["Msg.RecordDeleted"], Severity.Success);
             await ReloadAsync();
         }
         catch (ArchiveException ex)
@@ -316,7 +323,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Eliminazione da {Archive} non riuscita.", descriptor.Key);
-            Snackbar.Add(L["UnexpectedError"], Severity.Error);
+            Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
         }
     }
 

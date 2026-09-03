@@ -97,7 +97,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "ModuleRepairReason",
             EntityType = typeof(ModuleRepairReason),
-            NameKey = "ModuleRepairReason",
             Group = ArchiveGroup.MasterData,
             EditPolicy = ArchiveEditPolicy.MasterControlled,
             SupportsActiveFilter = true,
@@ -118,7 +117,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "ModuleScrapReason",
             EntityType = typeof(ModuleScrapReason),
-            NameKey = "ModuleScrapReason",
             Group = ArchiveGroup.MasterData,
             EditPolicy = ArchiveEditPolicy.MasterControlled,
             SupportsActiveFilter = true,
@@ -146,7 +144,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "ModuleTransRouteReason",
             EntityType = typeof(ModuleTransRouteReason),
-            NameKey = "ModuleTransRouteReason",
             Group = ArchiveGroup.MasterData,
             EditPolicy = ArchiveEditPolicy.MasterControlled,
             SupportsActiveFilter = true,
@@ -174,7 +171,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "PaintingDowntimeReason",
             EntityType = typeof(PaintingDowntimeReason),
-            NameKey = "PaintingDowntimeReason",
             Group = ArchiveGroup.MasterData,
             EditPolicy = ArchiveEditPolicy.MasterControlled,
             SupportsActiveFilter = true,
@@ -195,7 +191,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "PressBatchClosingReason",
             EntityType = typeof(PressBatchClosingReason),
-            NameKey = "PressBatchClosingReasonArchive",
             Group = ArchiveGroup.MasterData,
             EditPolicy = ArchiveEditPolicy.MasterControlled,
             SupportsActiveFilter = true,
@@ -221,7 +216,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "PressDowntimeReason",
             EntityType = typeof(PressDowntimeReason),
-            NameKey = "PressDowntimeReasonArchive",
             Group = ArchiveGroup.MasterData,
             EditPolicy = ArchiveEditPolicy.MasterControlled,
             SupportsActiveFilter = true,
@@ -256,7 +250,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "PressFailureType",
             EntityType = typeof(PressFailureType),
-            NameKey = "PressFailureTypeArchive",
             Group = ArchiveGroup.MasterData,
             PreventDelete = true,
             DefaultSort = [nameof(PressFailureType.Description)],
@@ -272,7 +265,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "PressReducedProdReason",
             EntityType = typeof(PressReducedProdReason),
-            NameKey = "PressReducedProdReasonArchive",
             Group = ArchiveGroup.MasterData,
             EditPolicy = ArchiveEditPolicy.MasterControlled,
             SupportsActiveFilter = true,
@@ -295,7 +287,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "DieCorrectionIssue",
             EntityType = typeof(DieCorrectionIssue),
-            NameKey = "DieCorrectionIssue",
             Group = ArchiveGroup.Plant,
             DefaultSort = [nameof(DieCorrectionIssue.Name)],
             SearchableFields = [nameof(DieCorrectionIssue.Name)],
@@ -310,7 +301,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "Module",
             EntityType = typeof(Module),
-            NameKey = "Module",
             Group = ArchiveGroup.Plant,
             DefaultSort = [nameof(Module.ModuleId)],
             SearchableFields = [nameof(Module.ModuleId), nameof(Module.ModuleGroupId)],
@@ -325,7 +315,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "OvenRecipe",
             EntityType = typeof(OvenRecipe),
-            NameKey = "OvenRecipe",
             Group = ArchiveGroup.Plant,
             DefaultSort = [nameof(OvenRecipe.OvenId), nameof(OvenRecipe.RecipeId)],
             SearchableFields = [nameof(OvenRecipe.Description), nameof(OvenRecipe.OvenId)],
@@ -347,7 +336,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "Worker",
             EntityType = typeof(Worker),
-            NameKey = "WorkerArchive",
             Group = ArchiveGroup.Plant,
             SupportsActiveFilter = true,
             DefaultSort = [nameof(Worker.Description)],
@@ -366,18 +354,21 @@ public sealed class ArchiveCatalog : IArchiveCatalog
                 Text(nameof(Worker.MiddleName), 25, required: false),
                 Text(nameof(Worker.LastName), 25),
                 Text(nameof(Worker.Description), 50, wide: true),
-                Lookup(nameof(Worker.CompanyId), LookupKeys.Companies, 4),
-                Flag(nameof(Worker.IsLineSupervisor)),
-                Flag(nameof(Worker.IsPressSupervisor)),
-                Flag(nameof(Worker.IsPressOperator)),
-                Flag(nameof(Worker.IsSawOperator)),
-                Flag(nameof(Worker.IsOvenOperator)),
-                Flag(nameof(Worker.IsRollingOperator)),
-                Flag(nameof(Worker.IsPaintOperator)),
-                Flag(nameof(Worker.IsPackingOperator)),
-                Flag(nameof(Worker.IsCorrectionOperator)),
-                Flag(nameof(Worker.IsMachiningOperator)),
-                IsActive(),
+                Lookup(nameof(Worker.CompanyId), LookupKeys.Companies, 4) with { ShowInGrid = false },
+                // Le dieci abilitazioni di mansione, piu' il flag di attivazione: in griglia
+                // sarebbero un muro di spunte largo quanto lo schermo. Restano nel form, e
+                // le voci non attive si riconoscono comunque dalla riga in secondo piano.
+                Flag(nameof(Worker.IsLineSupervisor)) with { ShowInGrid = false },
+                Flag(nameof(Worker.IsPressSupervisor)) with { ShowInGrid = false },
+                Flag(nameof(Worker.IsPressOperator)) with { ShowInGrid = false },
+                Flag(nameof(Worker.IsSawOperator)) with { ShowInGrid = false },
+                Flag(nameof(Worker.IsOvenOperator)) with { ShowInGrid = false },
+                Flag(nameof(Worker.IsRollingOperator)) with { ShowInGrid = false },
+                Flag(nameof(Worker.IsPaintOperator)) with { ShowInGrid = false },
+                Flag(nameof(Worker.IsPackingOperator)) with { ShowInGrid = false },
+                Flag(nameof(Worker.IsCorrectionOperator)) with { ShowInGrid = false },
+                Flag(nameof(Worker.IsMachiningOperator)) with { ShowInGrid = false },
+                IsActive() with { ShowInGrid = false },
             ],
         },
 
@@ -385,7 +376,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "EmailRecipient",
             EntityType = typeof(EmailRecipient),
-            NameKey = "EmailRecipient",
             Group = ArchiveGroup.Plant,
             SupportsActiveFilter = true,
             DefaultSort = [nameof(EmailRecipient.MessageType), nameof(EmailRecipient.Name)],
@@ -415,7 +405,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "Press",
             EntityType = typeof(Press),
-            NameKey = "PressArchive",
             Group = ArchiveGroup.Plant,
             EditPolicy = ArchiveEditPolicy.ReadOnly,
             SupportsActiveFilter = true,
@@ -476,7 +465,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "Oven",
             EntityType = typeof(Oven),
-            NameKey = "OvenArchive",
             Group = ArchiveGroup.Plant,
             EditPolicy = ArchiveEditPolicy.ReadOnly,
             DefaultSort = [nameof(Oven.OvenId)],
@@ -497,7 +485,6 @@ public sealed class ArchiveCatalog : IArchiveCatalog
         {
             Key = "HeatThreatment",
             EntityType = typeof(HeatThreatment),
-            NameKey = "HeatThreatmentArchive",
             Group = ArchiveGroup.Plant,
             EditPolicy = ArchiveEditPolicy.ReadOnly,
             DefaultSort = [nameof(HeatThreatment.HeatThreatmentId)],

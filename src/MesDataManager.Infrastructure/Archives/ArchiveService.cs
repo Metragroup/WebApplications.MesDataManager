@@ -194,9 +194,20 @@ public sealed class ArchiveService(
 
     // ------------------------------------------------------------------ regole
 
-    private ArchiveDescriptor Resolve(string archiveKey) =>
-        catalog.Find(archiveKey)
-        ?? throw new ArchiveException(ArchiveErrorKind.NotFound, "ArchiveNotFound", archiveKey);
+    private ArchiveDescriptor Resolve(string archiveKey)
+    {
+        var descriptor = catalog.Find(archiveKey);
+        if (descriptor is not null)
+        {
+            return descriptor;
+        }
+
+        // La chiave richiesta non finisce nel messaggio mostrato — all'operatore non dice
+        // niente — ma senza questa riga non resterebbe da nessuna parte.
+        logger.LogWarning("Anagrafica {Archive}: chiave assente dal catalogo.", archiveKey);
+
+        throw ArchiveException.ArchiveNotFound();
+    }
 
     /// <summary>
     /// Obbligatorieta', lunghezze massime e intervalli, allineati ai vincoli delle colonne.
@@ -251,8 +262,7 @@ public sealed class ArchiveService(
         }
         catch (Exception ex) when (ex is FormatException or InvalidCastException or OverflowException)
         {
-            throw new ArchiveException(
-                ArchiveErrorKind.Validation, "InvalidValue", field.Name, innerException: ex);
+            throw ArchiveException.InvalidValue(field.Name, ex);
         }
 
         if (numeric < range.Minimum || numeric > range.Maximum)
@@ -280,10 +290,7 @@ public sealed class ArchiveService(
 
         if (requestedActive && !master.IsActiveMaster)
         {
-            throw new ArchiveException(
-                ArchiveErrorKind.Validation,
-                "IsActiveLockedHint",
-                nameof(IActivatable.IsActive));
+            throw ArchiveException.MasterActivationLocked(nameof(IActivatable.IsActive));
         }
     }
 
@@ -303,8 +310,7 @@ public sealed class ArchiveService(
         {
             // Rete di sicurezza per i chiamanti che non passano dalla UI: un valore non
             // convertibile e' un errore di validazione, non un guasto dell'applicazione.
-            throw new ArchiveException(
-                ArchiveErrorKind.Validation, "InvalidValue", fieldName, innerException: ex);
+            throw ArchiveException.InvalidValue(fieldName, ex);
         }
     }
 
@@ -331,12 +337,9 @@ public sealed class ArchiveService(
 
             throw sql.Number switch
             {
-                2601 or 2627 => new ArchiveException(
-                    ArchiveErrorKind.DuplicateKey, "DuplicateKey", innerException: ex),
-                547 => new ArchiveException(
-                    ArchiveErrorKind.ForeignKeyViolation, "ForeignKeyViolation", innerException: ex),
-                _ => new ArchiveException(
-                    ArchiveErrorKind.Unknown, "SaveFailed", innerException: ex),
+                2601 or 2627 => ArchiveException.DuplicateKey(ex),
+                547 => ArchiveException.ForeignKeyViolation(ex),
+                _ => ArchiveException.SaveFailed(ex),
             };
         }
     }

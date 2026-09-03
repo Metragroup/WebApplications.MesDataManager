@@ -6,7 +6,7 @@
 <MudDialog>
     <TitleContent>
         <MudText Typo="Typo.h6">
-            @(IsNewRecord ? L["NewTitle"] : L["EditTitle"]) &mdash; @L[Descriptor.NameKey]
+            @(IsNewRecord ? L["Msg.NewRecordTitle"] : L["Msg.EditRecordTitle"]) &mdash; @L[Descriptor.NameKey]
         </MudText>
     </TitleContent>
 
@@ -17,7 +17,7 @@
                       Variant="Variant.Outlined"
                       Dense="true"
                       Class="mb-4">
-                @L["MasterLockedHint"]
+                @L["Msg.MasterLockedHint"]
             </MudAlert>
         }
 
@@ -43,7 +43,7 @@
     </DialogContent>
 
     <DialogActions>
-        <MudButton OnClick="Cancel" Disabled="_saving">@L["CancelButton"]</MudButton>
+        <MudButton OnClick="Cancel" Disabled="_saving">@L["Action.Cancel"]</MudButton>
         <MudButton Color="Color.Primary"
                    Variant="Variant.Filled"
                    OnClick="Save"
@@ -52,7 +52,7 @@
             {
                 <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
             }
-            @L["SaveButton"]
+            @L["Action.Save"]
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -90,7 +90,7 @@
             && Descriptor.HasMasterFlag
             && !Row.IsActiveMaster)
         {
-            return L["IsActiveLockedHint"];
+            return L["Msg.IsActiveLockedHint"];
         }
 
         return null;
@@ -116,7 +116,7 @@
                 await Archives.UpdateAsync(Descriptor.Key, Row);
             }
 
-            Snackbar.Add(L["RecordSaved"], Severity.Success);
+            Snackbar.Add(L["Msg.RecordSaved"], Severity.Success);
             Dialog.Close(DialogResult.Ok(true));
         }
         catch (ArchiveException ex)
@@ -129,7 +129,7 @@
             // La finestra resta aperta con i dati inseriti: chiudere il circuito qui
             // significherebbe far ribattere tutto all'operatore.
             Logger.LogError(ex, "Salvataggio su {Archive} non riuscito.", Descriptor.Key);
-            _error = L["UnexpectedError"];
+            _error = L["Error.UnexpectedError"];
         }
         finally
         {

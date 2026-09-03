@@ -94,7 +94,7 @@ public sealed class ArchiveServiceTests : IDisposable
             () => _harness.ServiceFor(Users.Editor).UpdateAsync("ModuleRepairReason", row));
 
         Assert.Equal(ArchiveErrorKind.Validation, error.Kind);
-        Assert.Equal("IsActiveLockedHint", error.MessageKey);
+        Assert.Equal("Msg.IsActiveLockedHint", error.MessageKey);
 
         using var context = _harness.CreateContext();
         Assert.False((await context.ModuleRepairReasons.SingleAsync()).IsActive);
@@ -254,7 +254,7 @@ public sealed class ArchiveServiceTests : IDisposable
         var error = await Assert.ThrowsAsync<ArchiveException>(
             () => service.InsertAsync("DieCorrectionIssue", row));
 
-        Assert.Equal("RequiredField", error.MessageKey);
+        Assert.Equal("Error.RequiredField", error.MessageKey);
         Assert.Equal(nameof(DieCorrectionIssue.Name), error.Field);
     }
 
@@ -268,7 +268,7 @@ public sealed class ArchiveServiceTests : IDisposable
         var error = await Assert.ThrowsAsync<ArchiveException>(
             () => service.InsertAsync("DieCorrectionIssue", row));
 
-        Assert.Equal("MaxLengthExceeded", error.MessageKey);
+        Assert.Equal("Error.MaxLengthExceeded", error.MessageKey);
         Assert.Equal(255, Assert.Single(error.MessageArguments));
     }
 
@@ -286,7 +286,7 @@ public sealed class ArchiveServiceTests : IDisposable
             () => _harness.ServiceFor(Users.Editor).UpdateAsync("ModuleRepairReason", row));
 
         Assert.Equal(ArchiveErrorKind.Validation, error.Kind);
-        Assert.Equal("ValueOutOfRange", error.MessageKey);
+        Assert.Equal("Error.ValueOutOfRange", error.MessageKey);
         Assert.Equal(nameof(ModuleRepairReason.Position), error.Field);
     }
 

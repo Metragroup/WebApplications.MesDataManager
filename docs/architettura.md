@@ -142,6 +142,32 @@ rinomina va fatta su entrambi i lati. Il localizzatore distingue maiuscole e min
 caso di mancata corrispondenza non segnala niente — mostra la chiave grezza. Un test del
 catalogo verifica ora che ogni etichetta dichiarata esista nei tre resx.
 
+### Nomi delle chiavi di risorsa
+
+Un prefisso raggruppa le chiavi per tipo di testo, cosi' dal nome si capisce a cosa serve una
+voce senza cercarla nel codice. `ResourceKeys` e' l'unico punto che conosce i prefissi.
+
+| Gruppo | Contenuto | Come si ricava |
+|---|---|---|
+| `Archive.` | Nome dell'anagrafica: menu e titolo di pagina | Da `ArchiveDescriptor.Key` |
+| `Field.` | Etichetta di colonna | Dal nome della proprieta' C#, o da `ArchiveField.LabelKey` |
+| `Nav.` | Navigazione e gruppi del menu | Letterale |
+| `Action.` | Pulsanti e comandi | Letterale |
+| `Msg.` | Esiti, conferme, suggerimenti, titoli dei dialog | Letterale o `ResourceKeys.Message` |
+| `Error.` | Errori e validazione | Dalle factory di `ArchiveException` |
+| `App.` | Titolo dell'applicazione e selettore di lingua | Letterale |
+
+Nomi dell'anagrafica ed etichette dei campi si ricavano per convenzione: dichiararli a mano
+significherebbe tenere allineate due liste. Prima dei prefissi la convenzione costringeva a
+distinguere le collisioni a mano — `PressArchive` per la tabella perche' `Press` sarebbe finita
+addosso al campo — e il suffisso finiva su meta' delle tabelle e non sull'altra meta'.
+
+I messaggi si costruiscono solo dalle factory statiche di `ArchiveException`: sono l'elenco
+completo di cio' che l'applicazione puo' mostrare, e un test le percorre per riflessione
+verificando che ogni chiave sia tradotta nelle tre lingue. Prima meta' delle chiavi era una
+stringa inline nel servizio e nessun test poteva vederle: `Error.RecordNotFound` e
+`Error.ArchiveNotFound` erano citate dal codice ma assenti da tutti e tre i resx.
+
 **Un contesto per operazione, non per sessione.** `MesDbContext` si ottiene da
 `IDbContextFactory` e viene smaltito a fine operazione. In Blazor Server un servizio con ambito
 vive quanto il circuito, cioè quanto l'intera sessione dell'utente: un `DbContext` registrato

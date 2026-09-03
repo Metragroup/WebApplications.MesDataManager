@@ -34,7 +34,11 @@ public enum ArchiveFieldEditability
 /// <param name="Kind">Tipo logico, che determina l'editor usato a UI.</param>
 public sealed record ArchiveField(string Name, ArchiveFieldKind Kind)
 {
-    /// <summary>Chiave di risorsa per l'etichetta. Se assente si usa <see cref="Name"/>.</summary>
+    /// <summary>
+    /// Nome della risorsa dentro il gruppo <c>Field.</c>, quando l'etichetta non puo' chiamarsi
+    /// come la proprieta': serve dove la stessa colonna vuole testi diversi a seconda
+    /// dell'anagrafica. Se assente si usa <see cref="Name"/>.
+    /// </summary>
     public string? LabelKey { get; init; }
 
     /// <summary>Fa parte della chiave primaria.</summary>
@@ -60,5 +64,5 @@ public sealed record ArchiveField(string Name, ArchiveFieldKind Kind)
     /// <summary>Cifre decimali da mostrare per i campi <c>Decimal</c>.</summary>
     public int DecimalDigits { get; init; } = 2;
 
-    public string ResolvedLabelKey => LabelKey ?? Name;
+    public string ResolvedLabelKey => ResourceKeys.Field(LabelKey ?? Name);
 }

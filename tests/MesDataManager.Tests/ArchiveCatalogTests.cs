@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using System.Resources;
 
 using MesDataManager.Application.Archives;
@@ -166,16 +167,7 @@ public sealed class ArchiveCatalogTests
         // CompanyID) mentre il catalogo le risolve dai nomi delle proprieta' C# (OprId,
         // CompanyId). Il localizzatore distingue maiuscole e minuscole, quindi in griglia
         // usciva la chiave grezza al posto dell'etichetta.
-        // L'italiano e' la lingua neutra (Strings.resx senza suffisso), quindi non ha un
-        // assembly satellite: si legge dalla cultura invariante.
-        var target = culture == "it" ? CultureInfo.InvariantCulture : new CultureInfo(culture);
-
-        var set = Resources.GetResourceSet(target, createIfNotExists: true, tryParents: false);
-        Assert.NotNull(set);
-
-        var presenti = set.Cast<System.Collections.DictionaryEntry>()
-            .Select(e => (string)e.Key)
-            .ToHashSet(StringComparer.Ordinal);
+        var presenti = Chiavi(culture);
 
         var mancanti = Catalog.All
             .Select(d => d.NameKey)
@@ -188,6 +180,109 @@ public sealed class ArchiveCatalogTests
         Assert.True(
             mancanti.Count == 0,
             $"Chiavi assenti da Strings.{culture}.resx: {string.Join(", ", mancanti)}");
+    }
+
+    [Theory]
+    [InlineData("it")]
+    [InlineData("en")]
+    [InlineData("fr")]
+    public void Ogni_messaggio_di_ArchiveException_e_tradotto(string culture)
+    {
+        // Regressione: "Error.RecordNotFound" e "Error.ArchiveNotFound" erano citate dal codice
+        // ma non esistevano in nessun resx, e all'operatore usciva la chiave grezza. Il test
+        // precedente non le vedeva perche' guarda solo le chiavi del catalogo.
+        var presenti = Chiavi(culture);
+
+        var mancanti = MessaggiDiErrore()
+            .Where(k => !presenti.Contains(k))
+            .OrderBy(k => k, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(
+            mancanti.Count == 0,
+            $"Chiavi assenti da Strings.{culture}.resx: {string.Join(", ", mancanti)}");
+    }
+
+    [Fact]
+    public void Le_tre_lingue_hanno_le_stesse_chiavi()
+    {
+        // Una traduzione aggiunta in una lingua sola non e' un errore di compilazione: la voce
+        // ricade sulla lingua neutra e passa inosservata fino a quando non la nota un utente.
+        var neutra = Chiavi("it");
+
+        foreach (var culture in new[] { "en", "fr" })
+        {
+            var tradotte = Chiavi(culture);
+
+            Assert.True(
+                neutra.SetEquals(tradotte),
+                $"Strings.{culture}.resx: mancano [{string.Join(", ", neutra.Except(tradotte).Order(StringComparer.Ordinal))}], "
+                + $"in piu' [{string.Join(", ", tradotte.Except(neutra).Order(StringComparer.Ordinal))}]");
+        }
+    }
+
+    [Fact]
+    public void Ogni_chiave_di_risorsa_appartiene_a_un_gruppo_noto()
+    {
+        // I resx tengono insieme testi di natura diversa: il prefisso dice a cosa serve una
+        // voce senza doverla cercare nel codice. Una chiave senza prefisso e' una voce che
+        // nessuno ritrovera' piu'.
+        string[] gruppi = ["Archive.", "Field.", "Nav.", "Action.", "Msg.", "Error.", "App."];
+
+        var fuori = Chiavi("it")
+            .Where(k => !gruppi.Any(g => k.StartsWith(g, StringComparison.Ordinal)))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(fuori.Count == 0, $"Chiavi senza gruppo: {string.Join(", ", fuori)}");
+    }
+
+    /// <summary>
+    /// Le chiavi dei messaggi d'errore, prese dalle factory di <see cref="ArchiveException"/>:
+    /// sono l'unico modo previsto per costruire un errore, quindi percorrerle copre tutti i
+    /// messaggi che l'applicazione puo' mostrare. Gli argomenti passati sono indifferenti,
+    /// del risultato interessa solo <see cref="ArchiveException.MessageKey"/>.
+    /// </summary>
+    private static IEnumerable<string> MessaggiDiErrore()
+    {
+        var factory = typeof(ArchiveException)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(m => m.ReturnType == typeof(ArchiveException))
+            .ToList();
+
+        Assert.NotEmpty(factory);
+
+        return factory
+            .Select(m => m.Invoke(null, [.. m.GetParameters().Select(p => Segnaposto(p.ParameterType))]))
+            .Cast<ArchiveException>()
+            .Select(e => e.MessageKey)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static object? Segnaposto(Type type) => type switch
+    {
+        _ when type == typeof(string) => "Position",
+        _ when type == typeof(int) => 0,
+        _ when type == typeof(object) => 0,
+        _ => null,
+    };
+
+    /// <summary>
+    /// Chiavi presenti nel resx di una lingua. L'italiano e' la lingua neutra
+    /// (<c>Strings.resx</c> senza suffisso), quindi non ha un assembly satellite: si legge
+    /// dalla cultura invariante.
+    /// </summary>
+    private static HashSet<string> Chiavi(string culture)
+    {
+        var target = culture == "it" ? CultureInfo.InvariantCulture : new CultureInfo(culture);
+
+        var set = Resources.GetResourceSet(target, createIfNotExists: true, tryParents: false);
+        Assert.NotNull(set);
+
+        return set.Cast<System.Collections.DictionaryEntry>()
+            .Select(e => (string)e.Key)
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     private static ArchiveDescriptor Resolve(string key) =>

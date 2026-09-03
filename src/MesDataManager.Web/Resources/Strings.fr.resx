@@ -46,397 +46,415 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
-  <data name="AccessDenied" xml:space="preserve">
-    <value>Vous n'avez pas l'autorisation pour cette opération.</value>
-  </data>
-  <data name="AppTitle" xml:space="preserve">
-    <value>MES Data Manager</value>
-  </data>
-  <data name="ArchiveLabel" xml:space="preserve">
-    <value>Archives</value>
-  </data>
-  <data name="AreaId" xml:space="preserve">
-    <value>Area</value>
-  </data>
-  <data name="AvailabilityClass" xml:space="preserve">
-    <value>Classe de disponibilité</value>
-  </data>
-  <data name="BackMillimeterWeight" xml:space="preserve">
-    <value>Poids du talon au mm</value>
-  </data>
-  <data name="BilletDeadTime" xml:space="preserve">
-    <value>Temps mort de la billette</value>
-  </data>
-  <data name="BilletDiameter" xml:space="preserve">
-    <value>Diamètre de la billette</value>
-  </data>
-  <data name="BilletMeterWeight" xml:space="preserve">
-    <value>Poids de la billette au mètre</value>
-  </data>
-  <data name="CancelButton" xml:space="preserve">
+  <data name="Action.Cancel" xml:space="preserve">
     <value>Annuler</value>
   </data>
-  <data name="Code" xml:space="preserve">
-    <value>Code</value>
-  </data>
-  <data name="CompanyId" xml:space="preserve">
-    <value>Société</value>
-  </data>
-  <data name="DeleteButton" xml:space="preserve">
+  <data name="Action.Delete" xml:space="preserve">
     <value>Supprimer</value>
   </data>
-  <data name="DeleteConfirmText" xml:space="preserve">
-    <value>Cette opération est irréversible.</value>
-  </data>
-  <data name="DeleteConfirmTitle" xml:space="preserve">
-    <value>Supprimer cet enregistrement?</value>
-  </data>
-  <data name="DeleteRecord" xml:space="preserve">
+  <data name="Action.DeleteRecord" xml:space="preserve">
     <value>Supprimer des enregistrements</value>
   </data>
-  <data name="Description" xml:space="preserve">
-    <value>La description</value>
-  </data>
-  <data name="DieCorrectionIssue" xml:space="preserve">
-    <value>Problèmes de filières</value>
-  </data>
-  <data name="DieCorrectionIssueId" xml:space="preserve">
-    <value>ID</value>
-  </data>
-  <data name="DuplicateKey" xml:space="preserve">
-    <value>Un enregistrement avec cette clé existe déjà.</value>
-  </data>
-  <data name="DurationMinutes" xml:space="preserve">
-    <value>Durée (minutes)</value>
-  </data>
-  <data name="EditButton" xml:space="preserve">
-    <value>Éditer</value>
-  </data>
-  <data name="EditRecord" xml:space="preserve">
+  <data name="Action.EditRecord" xml:space="preserve">
     <value>Modifier l'enregistrement</value>
   </data>
-  <data name="EditTitle" xml:space="preserve">
-    <value>Modifier l'enregistrement</value>
-  </data>
-  <data name="Email" xml:space="preserve">
-    <value>E-mail</value>
-  </data>
-  <data name="EmailRecipient" xml:space="preserve">
-    <value>Destinataires des e-mails</value>
-  </data>
-  <data name="EmailRecipientId" xml:space="preserve">
-    <value>ID</value>
-  </data>
-  <data name="EmplId" xml:space="preserve">
-    <value>Opérateur</value>
-  </data>
-  <data name="ExitButton" xml:space="preserve">
-    <value>Fermer</value>
-  </data>
-  <data name="FirstName" xml:space="preserve">
-    <value>Nom</value>
-  </data>
-  <data name="ForeignKeyViolation" xml:space="preserve">
-    <value>L'enregistrement est référencé par d'autres données et ne peut pas être supprimé.</value>
-  </data>
-  <data name="HasMes" xml:space="preserve">
-    <value>Géré par MES</value>
-  </data>
-  <data name="HeatThreatmentArchive" xml:space="preserve">
-    <value>Traitement thermique</value>
-  </data>
-  <data name="HeatThreatmentId" xml:space="preserve">
-    <value>Traitement thermique</value>
-  </data>
-  <data name="InvalidValue" xml:space="preserve">
-    <value>Cette valeur n'est pas valide pour ce champ.</value>
-  </data>
-  <data name="IsActive" xml:space="preserve">
-    <value>Actif</value>
-  </data>
-  <data name="IsActiveLockedHint" xml:space="preserve">
-    <value>L'indicateur "Actif" n'est disponible que pour les entrées activées au niveau master.</value>
-  </data>
-  <data name="IsActive_Master" xml:space="preserve">
-    <value>Actif (Master)</value>
-  </data>
-  <data name="IsCorrectionOperator" xml:space="preserve">
-    <value>Opérateur de correction</value>
-  </data>
-  <data name="IsElt" xml:space="preserve">
-    <value>Opérateur électrique</value>
-  </data>
-  <data name="IsLineSupervisor" xml:space="preserve">
-    <value>Superviseur de ligne</value>
-  </data>
-  <data name="IsMachiningOperator" xml:space="preserve">
-    <value>Opérateur d'usinage</value>
-  </data>
-  <data name="IsMec" xml:space="preserve">
-    <value>Opérateur mécanique</value>
-  </data>
-  <data name="IsOvenOperator" xml:space="preserve">
-    <value>Opérateur de four</value>
-  </data>
-  <data name="IsPackingOperator" xml:space="preserve">
-    <value>Opérateur d'emballage</value>
-  </data>
-  <data name="IsPaintOperator" xml:space="preserve">
-    <value>Opérateur de peinture</value>
-  </data>
-  <data name="IsPressOperator" xml:space="preserve">
-    <value>Opérateur de presse</value>
-  </data>
-  <data name="IsPressSupervisor" xml:space="preserve">
-    <value>Responsable presse</value>
-  </data>
-  <data name="IsPressUnavailable" xml:space="preserve">
-    <value>Presse indisponible</value>
-  </data>
-  <data name="IsProd" xml:space="preserve">
-    <value>Production</value>
-  </data>
-  <data name="IsRollingOperator" xml:space="preserve">
-    <value>Opérateur de roulement</value>
-  </data>
-  <data name="IsSawOperator" xml:space="preserve">
-    <value>Opérateur de scie</value>
-  </data>
-  <data name="Language" xml:space="preserve">
-    <value>Langue</value>
-  </data>
-  <data name="LastName" xml:space="preserve">
-    <value>Nom de famille</value>
-  </data>
-  <data name="LogWeightTolerancePerc" xml:space="preserve">
-    <value>Tolérance de poids %</value>
-  </data>
-  <data name="MasterDataLabel" xml:space="preserve">
-    <value>Master data</value>
-  </data>
-  <data name="MasterLockedHint" xml:space="preserve">
-    <value>Seuls la position et l'indicateur actif peuvent être modifiés dans cette table.</value>
-  </data>
-  <data name="MaxLengthExceeded" xml:space="preserve">
-    <value>Longueur maximale: {0} caractères.</value>
-  </data>
-  <data name="MessageType" xml:space="preserve">
-    <value>Type de message</value>
-  </data>
-  <data name="MiddleName" xml:space="preserve">
-    <value>Deuxième nom</value>
-  </data>
-  <data name="MinCooling" xml:space="preserve">
-    <value>Minutes de refroidissement</value>
-  </data>
-  <data name="MinCycle" xml:space="preserve">
-    <value>Minutes de cycle</value>
-  </data>
-  <data name="MinCycleMax" xml:space="preserve">
-    <value>Minutes de cycle (max)</value>
-  </data>
-  <data name="MinHourKg" xml:space="preserve">
-    <value>Kg/heure minimum</value>
-  </data>
-  <data name="MinRamp" xml:space="preserve">
-    <value>Minutes de rampe</value>
-  </data>
-  <data name="Module" xml:space="preserve">
-    <value>Module</value>
-  </data>
-  <data name="ModuleCapacity" xml:space="preserve">
-    <value>Capacité</value>
-  </data>
-  <data name="ModuleGroupId" xml:space="preserve">
-    <value>Groupe de conteneurs</value>
-  </data>
-  <data name="ModuleId" xml:space="preserve">
-    <value>Numéro de conteneur</value>
-  </data>
-  <data name="ModuleRepairReason" xml:space="preserve">
-    <value>Réparation causale du module</value>
-  </data>
-  <data name="ModuleRepairReasonId" xml:space="preserve">
-    <value>ID</value>
-  </data>
-  <data name="ModuleScrapReason" xml:space="preserve">
-    <value>Causes des déchets de module</value>
-  </data>
-  <data name="ModuleScrapReasonId" xml:space="preserve">
-    <value>ID</value>
-  </data>
-  <data name="ModuleTransRouteReason" xml:space="preserve">
-    <value>Causes de phase de cycle de module</value>
-  </data>
-  <data name="ModuleTransRouteReasonId" xml:space="preserve">
-    <value>ID</value>
-  </data>
-  <data name="Name" xml:space="preserve">
-    <value>Nom</value>
-  </data>
-  <data name="NavArchives" xml:space="preserve">
-    <value>Données de base</value>
-  </data>
-  <data name="NavHome" xml:space="preserve">
-    <value>Accueil</value>
-  </data>
-  <data name="NewButton" xml:space="preserve">
+  <data name="Action.New" xml:space="preserve">
     <value>Nouveau</value>
   </data>
-  <data name="NewRecord" xml:space="preserve">
-    <value>Nouvel enregistrement</value>
-  </data>
-  <data name="NewTitle" xml:space="preserve">
-    <value>Nouvel enregistrement</value>
-  </data>
-  <data name="NoRecords" xml:space="preserve">
-    <value>Aucun enregistrement à afficher.</value>
-  </data>
-  <data name="Note" xml:space="preserve">
-    <value>Remarques</value>
-  </data>
-  <data name="OeeClass" xml:space="preserve">
-    <value>Classe OEE</value>
-  </data>
-  <data name="OprId" xml:space="preserve">
-    <value>Opération</value>
-  </data>
-  <data name="OvenArchive" xml:space="preserve">
-    <value>Four</value>
-  </data>
-  <data name="OvenId" xml:space="preserve">
-    <value>Four</value>
-  </data>
-  <data name="OvenOprId" xml:space="preserve">
-    <value>Opération de four</value>
-  </data>
-  <data name="OvenRecipe" xml:space="preserve">
-    <value>Recettes au four</value>
-  </data>
-  <data name="OvenRecipeId" xml:space="preserve">
-    <value>ID</value>
-  </data>
-  <data name="OvenWrkCtrId" xml:space="preserve">
-    <value>Centre de travail du four</value>
-  </data>
-  <data name="PaintingDowntimeReason" xml:space="preserve">
-    <value>Causes de l'arrêt de la peinture</value>
-  </data>
-  <data name="PaintingDowntimeReasonId" xml:space="preserve">
-    <value>ID</value>
-  </data>
-  <data name="Position" xml:space="preserve">
-    <value>Position</value>
-  </data>
-  <data name="PressArchive" xml:space="preserve">
-    <value>Presse</value>
-  </data>
-  <data name="PressBatchClosingReasonArchive" xml:space="preserve">
-    <value>Motif de fermeture du lot</value>
-  </data>
-  <data name="PressBatchClosingReasonId" xml:space="preserve">
-    <value>ID</value>
-  </data>
-  <data name="PressDowntimeReasonArchive" xml:space="preserve">
-    <value>Raison du temps d'arrêt de la machine</value>
-  </data>
-  <data name="PressDowntimeReasonId" xml:space="preserve">
-    <value>ID</value>
-  </data>
-  <data name="PressFailureTypeArchive" xml:space="preserve">
-    <value>Types de temps d'arrêt des machines</value>
-  </data>
-  <data name="PressFailureTypeId" xml:space="preserve">
-    <value>ID</value>
-  </data>
-  <data name="PressId" xml:space="preserve">
-    <value>Presse</value>
-  </data>
-  <data name="PressMonitor_IsActive" xml:space="preserve">
-    <value>Moniteur de presse actif</value>
-  </data>
-  <data name="PressMonitor_Max" xml:space="preserve">
-    <value>Moniteur: maximum</value>
-  </data>
-  <data name="PressMonitor_Min" xml:space="preserve">
-    <value>Moniteur: minimum</value>
-  </data>
-  <data name="PressMonitor_Step" xml:space="preserve">
-    <value>Moniteur: pas</value>
-  </data>
-  <data name="PressMonitor_Threshold1" xml:space="preserve">
-    <value>Moniteur: seuil 1</value>
-  </data>
-  <data name="PressMonitor_Threshold2" xml:space="preserve">
-    <value>Moniteur: seuil 2</value>
-  </data>
-  <data name="PressReducedProdReasonArchive" xml:space="preserve">
-    <value>Raison de la réduction de la production</value>
-  </data>
-  <data name="PressReducedProdReasonId" xml:space="preserve">
-    <value>ID</value>
-  </data>
-  <data name="RecipeId" xml:space="preserve">
-    <value>ID</value>
-  </data>
-  <data name="RecordDeleted" xml:space="preserve">
-    <value>Enregistrement supprimé.</value>
-  </data>
-  <data name="RecordSaved" xml:space="preserve">
-    <value>Enregistrement sauvegardé.</value>
-  </data>
-  <data name="RefreshButton" xml:space="preserve">
+  <data name="Action.Refresh" xml:space="preserve">
     <value>Actualiser</value>
   </data>
-  <data name="RequiredField" xml:space="preserve">
-    <value>Ce champ est obligatoire.</value>
-  </data>
-  <data name="Result" xml:space="preserve">
-    <value>Résultat</value>
-  </data>
-  <data name="SaveButton" xml:space="preserve">
+  <data name="Action.Save" xml:space="preserve">
     <value>Enregistrer</value>
   </data>
-  <data name="SaveFailed" xml:space="preserve">
-    <value>Échec de l'enregistrement. Vérifiez les valeurs saisies.</value>
-  </data>
-  <data name="SawOprId" xml:space="preserve">
-    <value>Opération de sciage</value>
-  </data>
-  <data name="SawWrkCtrId" xml:space="preserve">
-    <value>Centre de travail de sciage</value>
-  </data>
-  <data name="SawPlcIp" xml:space="preserve">
-    <value>IP de l'API de la scie</value>
-  </data>
-  <data name="SawPlcPort" xml:space="preserve">
-    <value>Port de l'API de la scie</value>
-  </data>
-  <data name="SearchPlaceholder" xml:space="preserve">
-    <value>Rechercher…</value>
-  </data>
-  <data name="SelectArchivePrompt" xml:space="preserve">
-    <value>Sélectionnez une table dans la liste pour afficher son contenu.</value>
-  </data>
-  <data name="ShowInactive" xml:space="preserve">
+  <data name="Action.ShowInactive" xml:space="preserve">
     <value>Afficher les entrées inactives</value>
   </data>
-  <data name="SignOut" xml:space="preserve">
+  <data name="Action.SignOut" xml:space="preserve">
     <value>Se déconnecter</value>
   </data>
-  <data name="Temperature" xml:space="preserve">
-    <value>Température</value>
+  <data name="App.Language" xml:space="preserve">
+    <value>Langue</value>
   </data>
-  <data name="UnexpectedError" xml:space="preserve">
+  <data name="App.Title" xml:space="preserve">
+    <value>MES Data Manager</value>
+  </data>
+  <data name="Archive.DieCorrectionIssue" xml:space="preserve">
+    <value>Problèmes de filières</value>
+  </data>
+  <data name="Archive.EmailRecipient" xml:space="preserve">
+    <value>Destinataires des e-mails</value>
+  </data>
+  <data name="Archive.HeatThreatment" xml:space="preserve">
+    <value>Traitement thermique</value>
+  </data>
+  <data name="Archive.Module" xml:space="preserve">
+    <value>Module</value>
+  </data>
+  <data name="Archive.ModuleRepairReason" xml:space="preserve">
+    <value>Réparation causale du module</value>
+  </data>
+  <data name="Archive.ModuleScrapReason" xml:space="preserve">
+    <value>Causes des déchets de module</value>
+  </data>
+  <data name="Archive.ModuleTransRouteReason" xml:space="preserve">
+    <value>Causes de phase de cycle de module</value>
+  </data>
+  <data name="Archive.Oven" xml:space="preserve">
+    <value>Four</value>
+  </data>
+  <data name="Archive.OvenRecipe" xml:space="preserve">
+    <value>Recettes au four</value>
+  </data>
+  <data name="Archive.PaintingDowntimeReason" xml:space="preserve">
+    <value>Causes de l'arrêt de la peinture</value>
+  </data>
+  <data name="Archive.Press" xml:space="preserve">
+    <value>Presse</value>
+  </data>
+  <data name="Archive.PressBatchClosingReason" xml:space="preserve">
+    <value>Motif de fermeture du lot</value>
+  </data>
+  <data name="Archive.PressDowntimeReason" xml:space="preserve">
+    <value>Raison du temps d'arrêt de la machine</value>
+  </data>
+  <data name="Archive.PressFailureType" xml:space="preserve">
+    <value>Types de temps d'arrêt des machines</value>
+  </data>
+  <data name="Archive.PressReducedProdReason" xml:space="preserve">
+    <value>Raison de la réduction de la production</value>
+  </data>
+  <data name="Archive.Worker" xml:space="preserve">
+    <value>Opérateur</value>
+  </data>
+  <data name="Error.AccessDenied" xml:space="preserve">
+    <value>Vous n'avez pas l'autorisation pour cette opération.</value>
+  </data>
+  <data name="Error.ArchiveNotFound" xml:space="preserve">
+    <value>Le référentiel demandé n'existe pas.</value>
+  </data>
+  <data name="Error.DuplicateKey" xml:space="preserve">
+    <value>Un enregistrement avec cette clé existe déjà.</value>
+  </data>
+  <data name="Error.ForeignKeyViolation" xml:space="preserve">
+    <value>L'enregistrement est référencé par d'autres données et ne peut pas être supprimé.</value>
+  </data>
+  <data name="Error.InvalidValue" xml:space="preserve">
+    <value>Cette valeur n'est pas valide pour ce champ.</value>
+  </data>
+  <data name="Error.MaxLengthExceeded" xml:space="preserve">
+    <value>Longueur maximale: {0} caractères.</value>
+  </data>
+  <data name="Error.RecordNotFound" xml:space="preserve">
+    <value>Enregistrement introuvable.</value>
+  </data>
+  <data name="Error.RequiredField" xml:space="preserve">
+    <value>Ce champ est obligatoire.</value>
+  </data>
+  <data name="Error.SaveFailed" xml:space="preserve">
+    <value>Échec de l'enregistrement. Vérifiez les valeurs saisies.</value>
+  </data>
+  <data name="Error.UnexpectedError" xml:space="preserve">
     <value>L'opération a échoué en raison d'une erreur inattendue. Réessayez; si le problème persiste, signalez-le.</value>
   </data>
-  <data name="ValueOutOfRange" xml:space="preserve">
+  <data name="Error.ValueOutOfRange" xml:space="preserve">
     <value>Plage autorisée: de {0} à {1}.</value>
   </data>
-  <data name="WorkerArchive" xml:space="preserve">
+  <data name="Field.AreaId" xml:space="preserve">
+    <value>Area</value>
+  </data>
+  <data name="Field.AvailabilityClass" xml:space="preserve">
+    <value>Classe de disponibilité</value>
+  </data>
+  <data name="Field.BackMillimeterWeight" xml:space="preserve">
+    <value>Poids du talon au mm</value>
+  </data>
+  <data name="Field.BilletDeadTime" xml:space="preserve">
+    <value>Temps mort de la billette</value>
+  </data>
+  <data name="Field.BilletDiameter" xml:space="preserve">
+    <value>Diamètre de la billette</value>
+  </data>
+  <data name="Field.BilletMeterWeight" xml:space="preserve">
+    <value>Poids de la billette au mètre</value>
+  </data>
+  <data name="Field.Code" xml:space="preserve">
+    <value>Code</value>
+  </data>
+  <data name="Field.CompanyId" xml:space="preserve">
+    <value>Société</value>
+  </data>
+  <data name="Field.Description" xml:space="preserve">
+    <value>La description</value>
+  </data>
+  <data name="Field.DieCorrectionIssueId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Field.DurationMinutes" xml:space="preserve">
+    <value>Durée (minutes)</value>
+  </data>
+  <data name="Field.Email" xml:space="preserve">
+    <value>E-mail</value>
+  </data>
+  <data name="Field.EmailRecipientId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Field.EmplId" xml:space="preserve">
     <value>Opérateur</value>
   </data>
-  <data name="WorkerId" xml:space="preserve">
+  <data name="Field.FirstName" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="Field.HasMes" xml:space="preserve">
+    <value>Géré par MES</value>
+  </data>
+  <data name="Field.HeatThreatmentId" xml:space="preserve">
+    <value>Traitement thermique</value>
+  </data>
+  <data name="Field.IsActive" xml:space="preserve">
+    <value>Actif</value>
+  </data>
+  <data name="Field.IsActive_Master" xml:space="preserve">
+    <value>Actif (Master)</value>
+  </data>
+  <data name="Field.IsCorrectionOperator" xml:space="preserve">
+    <value>Opérateur de correction</value>
+  </data>
+  <data name="Field.IsElt" xml:space="preserve">
+    <value>Opérateur électrique</value>
+  </data>
+  <data name="Field.IsLineSupervisor" xml:space="preserve">
+    <value>Superviseur de ligne</value>
+  </data>
+  <data name="Field.IsMachiningOperator" xml:space="preserve">
+    <value>Opérateur d'usinage</value>
+  </data>
+  <data name="Field.IsMec" xml:space="preserve">
+    <value>Opérateur mécanique</value>
+  </data>
+  <data name="Field.IsOvenOperator" xml:space="preserve">
+    <value>Opérateur de four</value>
+  </data>
+  <data name="Field.IsPackingOperator" xml:space="preserve">
+    <value>Opérateur d'emballage</value>
+  </data>
+  <data name="Field.IsPaintOperator" xml:space="preserve">
+    <value>Opérateur de peinture</value>
+  </data>
+  <data name="Field.IsPressOperator" xml:space="preserve">
+    <value>Opérateur de presse</value>
+  </data>
+  <data name="Field.IsPressSupervisor" xml:space="preserve">
+    <value>Responsable presse</value>
+  </data>
+  <data name="Field.IsPressUnavailable" xml:space="preserve">
+    <value>Presse indisponible</value>
+  </data>
+  <data name="Field.IsProd" xml:space="preserve">
+    <value>Production</value>
+  </data>
+  <data name="Field.IsRollingOperator" xml:space="preserve">
+    <value>Opérateur de roulement</value>
+  </data>
+  <data name="Field.IsSawOperator" xml:space="preserve">
+    <value>Opérateur de scie</value>
+  </data>
+  <data name="Field.LastName" xml:space="preserve">
+    <value>Nom de famille</value>
+  </data>
+  <data name="Field.LogWeightTolerancePerc" xml:space="preserve">
+    <value>Tolérance de poids %</value>
+  </data>
+  <data name="Field.MessageType" xml:space="preserve">
+    <value>Type de message</value>
+  </data>
+  <data name="Field.MiddleName" xml:space="preserve">
+    <value>Deuxième nom</value>
+  </data>
+  <data name="Field.MinCooling" xml:space="preserve">
+    <value>Minutes de refroidissement</value>
+  </data>
+  <data name="Field.MinCycle" xml:space="preserve">
+    <value>Minutes de cycle</value>
+  </data>
+  <data name="Field.MinCycleMax" xml:space="preserve">
+    <value>Minutes de cycle (max)</value>
+  </data>
+  <data name="Field.MinHourKg" xml:space="preserve">
+    <value>Kg/heure minimum</value>
+  </data>
+  <data name="Field.MinRamp" xml:space="preserve">
+    <value>Minutes de rampe</value>
+  </data>
+  <data name="Field.ModuleCapacity" xml:space="preserve">
+    <value>Capacité</value>
+  </data>
+  <data name="Field.ModuleGroupId" xml:space="preserve">
+    <value>Groupe de conteneurs</value>
+  </data>
+  <data name="Field.ModuleId" xml:space="preserve">
+    <value>Numéro de conteneur</value>
+  </data>
+  <data name="Field.ModuleRepairReasonId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Field.ModuleScrapReasonId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Field.ModuleTransRouteReasonId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Field.Name" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="Field.Note" xml:space="preserve">
+    <value>Remarques</value>
+  </data>
+  <data name="Field.OeeClass" xml:space="preserve">
+    <value>Classe OEE</value>
+  </data>
+  <data name="Field.OprId" xml:space="preserve">
+    <value>Opération</value>
+  </data>
+  <data name="Field.OvenId" xml:space="preserve">
+    <value>Four</value>
+  </data>
+  <data name="Field.OvenOprId" xml:space="preserve">
+    <value>Opération de four</value>
+  </data>
+  <data name="Field.OvenRecipeId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Field.OvenWrkCtrId" xml:space="preserve">
+    <value>Centre de travail du four</value>
+  </data>
+  <data name="Field.PaintingDowntimeReasonId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Field.Position" xml:space="preserve">
+    <value>Position</value>
+  </data>
+  <data name="Field.PressBatchClosingReasonId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Field.PressDowntimeReasonId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Field.PressFailureTypeId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Field.PressId" xml:space="preserve">
+    <value>Presse</value>
+  </data>
+  <data name="Field.PressMonitor_IsActive" xml:space="preserve">
+    <value>Moniteur de presse actif</value>
+  </data>
+  <data name="Field.PressMonitor_Max" xml:space="preserve">
+    <value>Moniteur: maximum</value>
+  </data>
+  <data name="Field.PressMonitor_Min" xml:space="preserve">
+    <value>Moniteur: minimum</value>
+  </data>
+  <data name="Field.PressMonitor_Step" xml:space="preserve">
+    <value>Moniteur: pas</value>
+  </data>
+  <data name="Field.PressMonitor_Threshold1" xml:space="preserve">
+    <value>Moniteur: seuil 1</value>
+  </data>
+  <data name="Field.PressMonitor_Threshold2" xml:space="preserve">
+    <value>Moniteur: seuil 2</value>
+  </data>
+  <data name="Field.PressReducedProdReasonId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Field.RecipeId" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Field.Result" xml:space="preserve">
+    <value>Résultat</value>
+  </data>
+  <data name="Field.SawOprId" xml:space="preserve">
+    <value>Opération de sciage</value>
+  </data>
+  <data name="Field.SawPlcIp" xml:space="preserve">
+    <value>IP de l'API de la scie</value>
+  </data>
+  <data name="Field.SawPlcPort" xml:space="preserve">
+    <value>Port de l'API de la scie</value>
+  </data>
+  <data name="Field.SawWrkCtrId" xml:space="preserve">
+    <value>Centre de travail de sciage</value>
+  </data>
+  <data name="Field.Temperature" xml:space="preserve">
+    <value>Température</value>
+  </data>
+  <data name="Field.WorkerId" xml:space="preserve">
     <value>Opérateur</value>
+  </data>
+  <data name="Msg.DeleteConfirmText" xml:space="preserve">
+    <value>Cette opération est irréversible.</value>
+  </data>
+  <data name="Msg.DeleteConfirmTitle" xml:space="preserve">
+    <value>Supprimer cet enregistrement?</value>
+  </data>
+  <data name="Msg.EditRecordTitle" xml:space="preserve">
+    <value>Modifier l'enregistrement</value>
+  </data>
+  <data name="Msg.IsActiveLockedHint" xml:space="preserve">
+    <value>L'indicateur "Actif" n'est disponible que pour les entrées activées au niveau master.</value>
+  </data>
+  <data name="Msg.MasterLockedHint" xml:space="preserve">
+    <value>Seuls la position et l'indicateur actif peuvent être modifiés dans cette table.</value>
+  </data>
+  <data name="Msg.NewRecordTitle" xml:space="preserve">
+    <value>Nouvel enregistrement</value>
+  </data>
+  <data name="Msg.NoRecords" xml:space="preserve">
+    <value>Aucun enregistrement à afficher.</value>
+  </data>
+  <data name="Msg.PageNotAvailable" xml:space="preserve">
+    <value>Cette page n'est pas encore disponible.</value>
+  </data>
+  <data name="Msg.ReadOnlyArchive" xml:space="preserve">
+    <value>Lecture seule</value>
+  </data>
+  <data name="Msg.RecordDeleted" xml:space="preserve">
+    <value>Enregistrement supprimé.</value>
+  </data>
+  <data name="Msg.RecordSaved" xml:space="preserve">
+    <value>Enregistrement sauvegardé.</value>
+  </data>
+  <data name="Msg.SearchPlaceholder" xml:space="preserve">
+    <value>Rechercher…</value>
+  </data>
+  <data name="Msg.SelectArchivePrompt" xml:space="preserve">
+    <value>Sélectionnez une table dans la liste pour afficher son contenu.</value>
+  </data>
+  <data name="Nav.Archives" xml:space="preserve">
+    <value>Archives</value>
+  </data>
+  <data name="Nav.MasterDataGroup" xml:space="preserve">
+    <value>Données de base du groupe</value>
+  </data>
+  <data name="Nav.PlantGroup" xml:space="preserve">
+    <value>Données de base de l'usine</value>
+  </data>
+  <data name="Nav.Production" xml:space="preserve">
+    <value>Production</value>
+  </data>
+  <data name="Nav.ProductionBasketHistory" xml:space="preserve">
+    <value>Historique des paniers</value>
+  </data>
+  <data name="Nav.ProductionBatches" xml:space="preserve">
+    <value>Lots en cours</value>
+  </data>
+  <data name="Nav.ProductionData" xml:space="preserve">
+    <value>Données de production</value>
+  </data>
+  <data name="Nav.ProductionDowntime" xml:space="preserve">
+    <value>Arrêts</value>
+  </data>
+  <data name="Nav.ProductionLoadHistory" xml:space="preserve">
+    <value>Historique des chargements</value>
   </data>
 </root>

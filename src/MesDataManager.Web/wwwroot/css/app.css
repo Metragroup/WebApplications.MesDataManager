@@ -16,6 +16,24 @@ html, body {
 
 .mes-main {
     padding: 1.5rem 1.75rem 1rem;
+    /* La barra dell'applicazione e' fissa e MudBlazor ne compensa l'altezza con il proprio
+       padding superiore: legando l'altezza alla finestra, alla pagina resta esattamente lo
+       spazio utile, senza costanti da aggiornare a mano ogni volta che sopra si aggiunge
+       un titolo o un avviso. */
+    box-sizing: border-box;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+/* La pagina riempie il contenitore: chi dentro deve crescere lo fa a spese dello spazio
+   che resta, non del bordo inferiore della finestra. */
+.mes-page {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 /* ---------------------------------------------------------------- intestazioni di pagina */
@@ -57,6 +75,27 @@ html, body {
 
 /* ---------------------------------------------------------------- tabelle */
 
+/* La griglia prende l'altezza che resta sotto titolo, avvisi e barra strumenti: cosi'
+   un'anagrafica con l'avviso "solo posizione e attivazione" non sfonda la finestra
+   e a scorrere sono le righe, non la pagina. */
+.mes-grid {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* Solo il contenitore delle righe si adatta. La barra di paginazione ha "overflow: auto":
+   compressa come voce flessibile si porterebbe dietro una propria barra di scorrimento. */
+.mes-grid > *:not(.mud-table-container) {
+    flex: 0 0 auto;
+}
+
+.mes-grid .mud-table-container {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
 /* I codici macchina (ID, causali, matricole) vanno in monospazio: 0/O e 1/I restano distinti. */
 .mes-cell--code {
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
@@ -80,28 +119,29 @@ html, body {
     text-align: right;
 }
 
-/* Una voce disattivata resta consultabile ma non compete con quelle in uso. */
-.mes-row--inactive td {
-    color: var(--mud-palette-text-disabled);
+/* Una voce disattivata resta consultabile ma non compete con quelle in uso: testo grigio
+   e corsivo. Il selettore deve reggere il confronto con
+   ".mud-table-root .mud-table-body .mud-table-cell", che fissa il colore del testo:
+   con meno specificita' di quella passerebbe soltanto il corsivo. */
+.mud-table-body .mes-row--inactive td.mud-table-cell {
+    color: var(--mud-palette-text-secondary);
     font-style: italic;
 }
-
 /* ---------------------------------------------------------------- navigazione */
 
 .mes-nav {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
 }
 
+/* MudBlazor da' "flex: 1 1 auto" a .mud-input-control: dentro una colonna flex il campo
+   si allargherebbe fino a spingere il menu in fondo al drawer, fuori dalla vista. */
 .mes-nav__filter {
+    flex: 0 0 auto;
     padding: 0.75rem 0.75rem 0.25rem;
-}
-
-.mes-nav__group {
-    padding: 1rem 1rem 0.25rem;
-    color: var(--mud-palette-text-secondary);
 }
 
 .mes-nav__empty {
@@ -109,17 +149,33 @@ html, body {
     color: var(--mud-palette-text-secondary);
 }
 
-/* ---------------------------------------------------------------- schede della home */
+/* ---------------------------------------------------------------- drawer */
 
-.mes-card {
-    padding: 1.25rem 1rem;
-    border: 1px solid var(--mud-palette-divider);
+/* Il marchio sta in cima al drawer e riporta all'apertura: e' il gesto che tutti provano. */
+.mes-drawer__brand {
+    min-height: 0;
+    padding: 1rem 1rem 0.5rem;
 }
 
-.mes-card__label {
-    padding: 0 0.75rem 0.5rem;
-    color: var(--mud-palette-text-secondary);
+.mes-drawer__home {
+    display: block;
+    line-height: 0; /* l'ancora non deve aggiungere spazio sotto l'SVG */
+    color: var(--mud-palette-text-primary); /* il logotipo prende currentColor */
 }
+
+.mes-drawer__logo {
+    width: 10.5rem;
+    height: auto;
+}
+
+/* ---------------------------------------------------------------- home */
+
+/* Il menu dell'apertura non si allarga oltre la misura in cui si legge una lista. */
+.mes-home {
+    max-width: 30rem;
+}
+
+/* ---------------------------------------------------------------- form */
 
 .mes-field__hint {
     display: block;
@@ -140,3 +196,4 @@ html, body {
         transition-duration: 0.01ms !important;
     }
 }
+

@@ -1,0 +1,137 @@
+@inject IArchiveCatalog Catalog
+@inject IStringLocalizer<Strings> L
+
+@*
+    Unico menu dell'applicazione: lo mostrano sia il drawer sia la pagina di apertura, cosi'
+    le due viste non possono divergere. Le voci delle anagrafiche arrivano dal catalogo:
+    aggiungerne una la fa comparire qui senza toccare questo file.
+
+    Niente icone: sono tutte pagine dello stesso tipo, e un'icona per voce non distinguerebbe
+    nulla. Le due liste di anagrafiche partono chiuse, perche' sedici voci aperte
+    coprirebbero la sezione di produzione.
+*@
+
+<div class="mes-nav">
+    <MudTextField Value="_filter"
+                  ValueChanged="@((string? value) => OnFilterChanged(value))"
+                  T="string"
+                  Placeholder="@L["Msg.SearchPlaceholder"]"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Outlined.Search"
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense"
+                  Immediate="true"
+                  Clearable="true"
+                  Class="mes-nav__filter" />
+
+    <MudNavMenu Dense="true" Rounded="false">
+        @if (Groups.Any(g => VisibleArchives(g.Group).Count > 0))
+        {
+            <MudNavGroup Title="@L["Nav.Archives"]"
+                         Expanded="_archivesExpanded"
+                         ExpandedChanged="@(value => _archivesExpanded = value)">
+                @foreach (var (group, labelKey) in Groups)
+                {
+                    var current = group;
+                    var entries = VisibleArchives(current);
+
+                    @if (entries.Count > 0)
+                    {
+                        <MudNavGroup Title="@L[labelKey]"
+                                     Expanded="_expanded[current]"
+                                     ExpandedChanged="@(value => _expanded[current] = value)">
+                            @foreach (var descriptor in entries)
+                            {
+                                <MudNavLink Href="@($"/anagrafiche/{descriptor.Key}")" Match="NavLinkMatch.All">
+                                    @L[descriptor.NameKey]
+                                </MudNavLink>
+                            }
+                        </MudNavGroup>
+                    }
+                }
+            </MudNavGroup>
+        }
+
+        @if (VisibleProduction().Count > 0)
+        {
+            <MudNavGroup Title="@L["Nav.Production"]"
+                         Expanded="_productionExpanded"
+                         ExpandedChanged="@(value => _productionExpanded = value)">
+                @foreach (var labelKey in VisibleProduction())
+                {
+                    @* La voce c'e' ma la pagina no: disabilitata, cosi' nessuno finisce su un 404. *@
+                    <MudNavLink Disabled="true" title="@L["Msg.PageNotAvailable"]">@L[labelKey]</MudNavLink>
+                }
+            </MudNavGroup>
+        }
+    </MudNavMenu>
+
+    @if (Groups.All(g => VisibleArchives(g.Group).Count == 0) && VisibleProduction().Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mes-nav__empty">@L["Msg.NoRecords"]</MudText>
+    }
+</div>
+
+@code {
+    private static readonly (ArchiveGroup Group, string LabelKey)[] Groups =
+    [
+        (ArchiveGroup.MasterData, "Nav.MasterDataGroup"),
+        (ArchiveGroup.Plant, "Nav.PlantGroup"),
+    ];
+
+    /// <summary>
+    /// Voci della sezione di produzione, nell'ordine in cui si lavora: prima i fermi, poi la
+    /// produzione del turno, infine gli storici. Diventeranno pagine vere.
+    /// </summary>
+    private static readonly string[] ProductionEntries =
+    [
+        "Nav.ProductionDowntime",
+        "Nav.ProductionData",
+        "Nav.ProductionBatches",
+        "Nav.ProductionBasketHistory",
+        "Nav.ProductionLoadHistory",
+    ];
+
+    private string? _filter;
+    private bool _archivesExpanded = true;
+    private bool _productionExpanded = true;
+
+    private readonly Dictionary<ArchiveGroup, bool> _expanded = new()
+    {
+        [ArchiveGroup.MasterData] = false,
+        [ArchiveGroup.Plant] = false,
+    };
+
+    private bool Filtering => !string.IsNullOrWhiteSpace(_filter);
+
+    /// <summary>
+    /// Con il filtro attivo le liste delle anagrafiche si aprono da sole: cercare dentro
+    /// sezioni chiuse non mostrerebbe nulla. Cancellato il filtro tornano a chiudersi.
+    /// </summary>
+    private void OnFilterChanged(string? value)
+    {
+        _filter = value;
+
+        _expanded[ArchiveGroup.MasterData] = Filtering;
+        _expanded[ArchiveGroup.Plant] = Filtering;
+        _archivesExpanded = true;
+        _productionExpanded = true;
+    }
+
+    /// <summary>
+    /// Anagrafiche del gruppo che superano il filtro, ordinate per nome nella lingua corrente:
+    /// con sedici voci l'ordine alfabetico e' il modo piu' rapido per trovarne una.
+    /// </summary>
+    private List<ArchiveDescriptor> VisibleArchives(ArchiveGroup group) =>
+    [
+        .. Catalog.All
+            .Where(d => d.Group == group)
+            .Where(d => Matches(d.NameKey))
+            .OrderBy(d => L[d.NameKey].Value, StringComparer.CurrentCulture)
+    ];
+
+    private List<string> VisibleProduction() => [.. ProductionEntries.Where(Matches)];
+
+    private bool Matches(string labelKey) =>
+        !Filtering || L[labelKey].Value.Contains(_filter!, StringComparison.CurrentCultureIgnoreCase);
+}

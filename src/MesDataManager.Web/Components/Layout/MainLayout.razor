@@ -14,10 +14,10 @@
         <MudIconButton Icon="@Icons.Material.Outlined.Menu"
                        Color="Color.Inherit"
                        Edge="Edge.Start"
-                       aria-label="@L["NavArchives"]"
+                       aria-label="@L["Nav.Archives"]"
                        OnClick="ToggleDrawer" />
 
-        <MudText Typo="Typo.h6" Class="ml-2">@L["AppTitle"]</MudText>
+        <MudText Typo="Typo.h6" Class="ml-2">@L["App.Title"]</MudText>
 
         <MudSpacer />
 
@@ -29,7 +29,7 @@
 
         <MudMenu Icon="@Icons.Material.Outlined.Translate"
                  Color="Color.Inherit"
-                 AriaLabel="@L["Language"]">
+                 AriaLabel="@L["App.Language"]">
             @foreach (var culture in Cultures)
             {
                 <MudMenuItem OnClick="@(() => SwitchCulture(culture.Code))">
@@ -59,7 +59,7 @@
                     <MudMenuItem Icon="@Icons.Material.Outlined.Logout"
                                  Href="/MicrosoftIdentity/Account/SignOut"
                                  ForceLoad="true">
-                        @L["SignOut"]
+                        @L["Action.SignOut"]
                     </MudMenuItem>
                 }
                 else
@@ -76,7 +76,14 @@
                Elevation="1"
                ClipMode="DrawerClipMode.Always"
                Variant="DrawerVariant.Responsive">
-        <ArchiveNavigation />
+        <MudDrawerHeader Class="mes-drawer__brand">
+            @* Il marchio e' anche la via di ritorno all'apertura: e' il primo gesto che si prova. *@
+            <a href="/" class="mes-drawer__home" aria-label="@L["App.Title"]">
+                <MetraLogo Class="mes-drawer__logo" />
+            </a>
+        </MudDrawerHeader>
+
+        <MainNavigation />
     </MudDrawer>
 
     <MudMainContent Class="mes-main">

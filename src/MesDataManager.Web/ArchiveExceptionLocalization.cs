@@ -21,6 +21,6 @@ public static class ArchiveExceptionLocalization
         // risparmia all'operatore la caccia al campo sbagliato.
         return exception.Field is null
             ? message
-            : $"{localizer[exception.Field]}: {message}";
+            : $"{localizer[ResourceKeys.Field(exception.Field)]}: {message}";
     }
 }
