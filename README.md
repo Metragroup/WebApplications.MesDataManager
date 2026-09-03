@@ -75,7 +75,9 @@ Il codice è nuovo, ma queste regole erano nell'app precedente e sono state mant
    su `Company` da questo contesto.
 
 5. **Permessi.** L'`AuthService` precedente restituiva sempre tutti i permessi (`TODO` nel
-   codice). Ora derivano dai ruoli Entra ID; serve decidere chi ha quale ruolo.
+   codice). Ora derivano dai ruoli Entra ID: le anagrafiche le scrivono `Archive.Editor` e
+   `Administrator` — inserimento, modifica ed eliminazione insieme — mentre `Reader` e
+   `Production.Editor` le consultano. **Senza almeno un ruolo non si vedono i dati.**
 
 ## Configurazione
 
@@ -87,12 +89,17 @@ Serve una app registration nel tenant, con:
   l'URL di produzione;
 - **Front-channel logout URL**: `https://localhost:7194/signout-callback-oidc`;
 - **App roles** (`Users/Groups` come allowed member type):
-  `Archive.Reader`, `Archive.Editor`, `Archive.Administrator`.
+  `Administrator`, `Reader`, `Archive.Editor`, `Production.Editor`;
+- **Assignment required = Yes**: accede solo chi ha un ruolo.
 
 Poi compilare `AzureAd` in `appsettings.json` con `TenantId`, `ClientId` e `Domain`.
 
 Il flusso usato è OpenID Connect con solo autenticazione: non servono client secret né
 permessi Graph, quindi non c'è nessun segreto da custodire.
+
+Per l'esercizio — `itbsintra01.metra.local`, applicazione IIS `MesDataManager` — gli indirizzi
+da registrare, l'assegnazione dei ruoli e il resto della procedura sono in
+[`docs/pubblicazione.md`](docs/pubblicazione.md).
 
 ### 2. Stringa di connessione
 
@@ -103,8 +110,9 @@ cd src\MesDataManager.Web
 dotnet user-secrets set "ConnectionStrings:MesDatabase" "Server=...;Database=...;Trusted_Connection=True;TrustServerCertificate=True"
 ```
 
-In produzione conviene l'autenticazione gestita (managed identity) invece di
-utente e password, così non c'è nulla da ruotare.
+In esercizio la stringa sta in `appsettings.Production.json` e usa `Trusted_Connection`:
+accede l'account di servizio di dominio con cui gira l'application pool, quindi non contiene
+password e non c'è nulla da ruotare.
 
 ### 3. Avvio
 
@@ -142,6 +150,9 @@ istanze non è sicuro. Gli script vanno gestiti dal processo di deploy del datab
   WinForms, cosa è stato lasciato indietro e cosa non è stato verificato.
 - [`Docs/decisioni-aperte.md`](docs/decisioni-aperte.md) — cosa resta da decidere, con il
   contesto per deciderlo e cosa succede se non si decide.
+- [`Docs/pubblicazione.md`](docs/pubblicazione.md) — pubblicazione su IIS: prerequisiti del
+  server, registrazione su Entra ID, permessi SQL, procedura di deploy, prova di accensione e
+  tabella dei sintomi.
 
 ## Prossimi passi suggeriti
 
@@ -152,6 +163,7 @@ istanze non è sicuro. Gli script vanno gestiti dal processo di deploy del datab
 2. Provare la modifica da browser con il circuito interattivo attivo, per confermare che
    l'identità arrivi anche fuori dal rendering lato server.
 3. Decidere la sorte di `Press`, `Oven` e `HeatThreatment`.
-4. Assegnare i ruoli Entra ID e provare i tre livelli di permesso.
+4. Assegnare i ruoli e provare i tre esiti: accesso negato senza ruolo, consultazione con
+   `Reader`, scrittura con `Archive.Editor`.
 5. Solo dopo: affrontare i moduli testata/righe (batch, billette, fermate), che sono la
    parte con logica di dominio vera.

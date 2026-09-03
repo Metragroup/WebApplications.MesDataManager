@@ -28,7 +28,7 @@ public sealed class ArchiveServiceTests : IDisposable
         var row = await LoadRowAsync(id: 1);
         row[nameof(ModuleRepairReason.Position)] = 9;
 
-        await _harness.ServiceFor(Users.Editor).UpdateAsync("ModuleRepairReason", row);
+        await _harness.ServiceFor(Users.Writer).UpdateAsync("ModuleRepairReason", row);
 
         using var context = _harness.CreateContext();
         var saved = await context.ModuleRepairReasons.SingleAsync();
@@ -44,7 +44,7 @@ public sealed class ArchiveServiceTests : IDisposable
         row[nameof(ModuleRepairReason.Position)] = 3;
         row[nameof(ModuleRepairReason.Description)] = "tentativo di modifica";
 
-        await _harness.ServiceFor(Users.Editor).UpdateAsync("ModuleRepairReason", row);
+        await _harness.ServiceFor(Users.Writer).UpdateAsync("ModuleRepairReason", row);
 
         using var context = _harness.CreateContext();
         var saved = await context.ModuleRepairReasons.SingleAsync();
@@ -55,7 +55,7 @@ public sealed class ArchiveServiceTests : IDisposable
     [Fact]
     public async Task L_inserimento_scrive_la_riga()
     {
-        var service = _harness.ServiceFor(Users.Editor);
+        var service = _harness.ServiceFor(Users.Writer);
 
         var row = await service.CreateTemplateAsync("DieCorrectionIssue");
         row[nameof(DieCorrectionIssue.Name)] = "riga nuova";
@@ -91,7 +91,7 @@ public sealed class ArchiveServiceTests : IDisposable
         row[nameof(ModuleRepairReason.IsActive)] = true;
 
         var error = await Assert.ThrowsAsync<ArchiveException>(
-            () => _harness.ServiceFor(Users.Editor).UpdateAsync("ModuleRepairReason", row));
+            () => _harness.ServiceFor(Users.Writer).UpdateAsync("ModuleRepairReason", row));
 
         Assert.Equal(ArchiveErrorKind.Validation, error.Kind);
         Assert.Equal("Msg.IsActiveLockedHint", error.MessageKey);
@@ -108,7 +108,7 @@ public sealed class ArchiveServiceTests : IDisposable
         var row = await LoadRowAsync(id: 1, includeInactive: true);
         row[nameof(ModuleRepairReason.IsActive)] = true;
 
-        await _harness.ServiceFor(Users.Editor).UpdateAsync("ModuleRepairReason", row);
+        await _harness.ServiceFor(Users.Writer).UpdateAsync("ModuleRepairReason", row);
 
         using var context = _harness.CreateContext();
         Assert.True((await context.ModuleRepairReasons.SingleAsync()).IsActive);
@@ -122,7 +122,7 @@ public sealed class ArchiveServiceTests : IDisposable
         var row = await LoadRowAsync(id: 1);
         row[nameof(ModuleRepairReason.IsActive)] = false;
 
-        await _harness.ServiceFor(Users.Editor).UpdateAsync("ModuleRepairReason", row);
+        await _harness.ServiceFor(Users.Writer).UpdateAsync("ModuleRepairReason", row);
 
         using var context = _harness.CreateContext();
         Assert.False((await context.ModuleRepairReasons.SingleAsync()).IsActive);
@@ -156,7 +156,7 @@ public sealed class ArchiveServiceTests : IDisposable
     {
         _harness.Seed(new DieCorrectionIssue { Name = "protetta" });
 
-        var service = _harness.ServiceFor(Users.Editor);
+        var service = _harness.ServiceFor(Users.Writer);
         var rows = await service.GetRowsAsync("DieCorrectionIssue", new ArchiveQuery());
 
         var error = await Assert.ThrowsAsync<ArchiveException>(
@@ -199,7 +199,7 @@ public sealed class ArchiveServiceTests : IDisposable
     public async Task Su_PressFailureType_inserimento_e_modifica_restano_possibili()
     {
         // Il divieto riguarda solo l'eliminazione: la tabella resta a gestione piena.
-        var service = _harness.ServiceFor(Users.Editor);
+        var service = _harness.ServiceFor(Users.Writer);
 
         var row = await service.CreateTemplateAsync("PressFailureType");
         row[nameof(PressFailureType.PressFailureTypeId)] = 7;
@@ -237,7 +237,7 @@ public sealed class ArchiveServiceTests : IDisposable
     public async Task Una_chiave_di_anagrafica_inesistente_e_un_errore_esplicito()
     {
         var error = await Assert.ThrowsAsync<ArchiveException>(
-            () => _harness.ServiceFor(Users.Editor).GetRowsAsync("NonEsiste", new ArchiveQuery()));
+            () => _harness.ServiceFor(Users.Writer).GetRowsAsync("NonEsiste", new ArchiveQuery()));
 
         Assert.Equal(ArchiveErrorKind.NotFound, error.Kind);
     }
@@ -247,7 +247,7 @@ public sealed class ArchiveServiceTests : IDisposable
     [Fact]
     public async Task Un_campo_obbligatorio_vuoto_viene_respinto()
     {
-        var service = _harness.ServiceFor(Users.Editor);
+        var service = _harness.ServiceFor(Users.Writer);
         var row = await service.CreateTemplateAsync("DieCorrectionIssue");
         row[nameof(DieCorrectionIssue.Name)] = "   ";
 
@@ -261,7 +261,7 @@ public sealed class ArchiveServiceTests : IDisposable
     [Fact]
     public async Task Una_stringa_troppo_lunga_viene_respinta()
     {
-        var service = _harness.ServiceFor(Users.Editor);
+        var service = _harness.ServiceFor(Users.Writer);
         var row = await service.CreateTemplateAsync("DieCorrectionIssue");
         row[nameof(DieCorrectionIssue.Name)] = new string('x', 256);
 
@@ -283,7 +283,7 @@ public sealed class ArchiveServiceTests : IDisposable
         row[nameof(ModuleRepairReason.Position)] = 40_000L;
 
         var error = await Assert.ThrowsAsync<ArchiveException>(
-            () => _harness.ServiceFor(Users.Editor).UpdateAsync("ModuleRepairReason", row));
+            () => _harness.ServiceFor(Users.Writer).UpdateAsync("ModuleRepairReason", row));
 
         Assert.Equal(ArchiveErrorKind.Validation, error.Kind);
         Assert.Equal("Error.ValueOutOfRange", error.MessageKey);
@@ -293,12 +293,12 @@ public sealed class ArchiveServiceTests : IDisposable
     [Fact]
     public async Task Modificare_una_riga_inesistente_non_ne_crea_una_nuova()
     {
-        var row = await _harness.ServiceFor(Users.Editor).CreateTemplateAsync("DieCorrectionIssue");
+        var row = await _harness.ServiceFor(Users.Writer).CreateTemplateAsync("DieCorrectionIssue");
         row[nameof(DieCorrectionIssue.DieCorrectionIssueId)] = 999;
         row[nameof(DieCorrectionIssue.Name)] = "fantasma";
 
         var error = await Assert.ThrowsAsync<ArchiveException>(
-            () => _harness.ServiceFor(Users.Editor).UpdateAsync("DieCorrectionIssue", row));
+            () => _harness.ServiceFor(Users.Writer).UpdateAsync("DieCorrectionIssue", row));
 
         Assert.Equal(ArchiveErrorKind.NotFound, error.Kind);
     }
@@ -351,7 +351,7 @@ public sealed class ArchiveServiceTests : IDisposable
     [Fact]
     public async Task La_nuova_riga_nasce_attiva_dove_l_anagrafica_lo_prevede()
     {
-        var row = await _harness.ServiceFor(Users.Editor).CreateTemplateAsync("EmailRecipient");
+        var row = await _harness.ServiceFor(Users.Writer).CreateTemplateAsync("EmailRecipient");
 
         Assert.True(row.IsActive);
     }

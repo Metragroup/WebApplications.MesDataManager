@@ -1,5 +1,6 @@
 using MesDataManager.Application.Security;
 
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Identity.Web;
@@ -68,6 +69,15 @@ public static class AuthenticationSetup
             services
                 .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
                 .AddMicrosoftIdentityWebApp(azureAd);
+
+            // Il nome predefinito del cookie (".AspNetCore.Cookies") e' lo stesso in ogni
+            // applicazione ASP.NET Core. Sotto IIS questa convive con altre applicazioni sullo
+            // stesso host: un cookie omonimo scritto da un'altra alla radice del sito
+            // arriverebbe anche qui, dove non e' decifrabile, e rimanderebbe al login chi era
+            // gia' collegato. Il percorso del cookie lo restringe comunque il path base.
+            services.Configure<CookieAuthenticationOptions>(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                options => options.Cookie.Name = ".MesDataManager.Auth");
         }
 
         services.AddAuthorization(options =>

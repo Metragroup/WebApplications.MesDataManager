@@ -5,6 +5,7 @@ using MesDataManager.Web;
 using MesDataManager.Web.Components;
 using MesDataManager.Web.Security;
 
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.Identity.Web.UI;
 
@@ -16,6 +17,34 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ---------------------------------------------------------------------- logging
 builder.Host.UseSerilog((ctx, cfg) => cfg.ReadFrom.Configuration(ctx.Configuration));
+
+// ---------------------------------------------------------------------- chiavi di cifratura
+// Queste chiavi proteggono il cookie di autenticazione e i cookie di correlazione di
+// OpenID Connect. Con le impostazioni predefinite, sotto IIS finiscono nel registro
+// dell'account dell'application pool: se il profilo utente non e' caricato diventano
+// effimere, e a ogni riciclo del pool chi tenta di collegarsi riceve "Correlation failed"
+// senza che nulla, nei log, dica perche'.
+// Si configura solo in esercizio: in locale le impostazioni predefinite bastano.
+var dataProtectionKeyPath = builder.Configuration["DataProtection:KeyPath"];
+
+if (!string.IsNullOrWhiteSpace(dataProtectionKeyPath))
+{
+    var keys = builder.Services
+        .AddDataProtection()
+        // Dichiarato e non dedotto: il valore predefinito deriva dal percorso della cartella
+        // dell'applicazione, che a ogni pubblicazione puo' cambiare, e cambiandolo tutti i
+        // cookie emessi prima diventano illeggibili.
+        .SetApplicationName("MesDataManager")
+        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyPath));
+
+    if (OperatingSystem.IsWindows())
+    {
+        // Le chiavi restano cifrate a riposo, legate all'account che le ha scritte: chi
+        // leggesse la cartella non ne ricaverebbe nulla. Con un secondo server servirebbe
+        // invece un certificato condiviso.
+        keys.ProtectKeysWithDpapi();
+    }
+}
 
 // ---------------------------------------------------------------------- autenticazione
 // In esercizio: Entra ID via OpenID Connect, con i permessi presi dai ruoli dell'app
@@ -75,8 +104,10 @@ app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 // Cambio lingua: in Blazor Server la cultura si applica al circuito, quindi serve una
 // richiesta HTTP vera e un ricaricamento della pagina.
-app.MapGet("/culture/set", (string culture, string redirectUri, HttpContext http) =>
+app.MapGet("/culture/set", (string culture, string? redirectUri, HttpContext http) =>
 {
+    var pathBase = http.Request.PathBase.Value?.TrimEnd('/') ?? string.Empty;
+
     if (supportedCultures.Contains(culture, StringComparer.OrdinalIgnoreCase))
     {
         http.Response.Cookies.Append(
@@ -89,10 +120,21 @@ app.MapGet("/culture/set", (string culture, string redirectUri, HttpContext http
                 IsEssential = true,
                 HttpOnly = false,
                 SameSite = SameSiteMode.Lax,
+
+                // Il cookie vale per questa applicazione, non per tutto il sito: su
+                // itbsintra01 convivono altre applicazioni e il nome del cookie di cultura
+                // e' quello predefinito di ASP.NET Core, quindi identico al loro.
+                Path = string.IsNullOrEmpty(pathBase) ? "/" : pathBase,
             });
     }
 
-    return Results.LocalRedirect(string.IsNullOrWhiteSpace(redirectUri) ? "/" : redirectUri);
+    // redirectUri arriva dal client come percorso relativo alla base dell'applicazione.
+    // Il TrimStart neutralizza sia la forma assoluta sia "//host", che sarebbe un rinvio
+    // fuori sito; il PathBase va riaggiunto perche' LocalRedirect scrive l'indirizzo
+    // cosi' com'e' e sotto IIS un "/" iniziale punterebbe alla radice del server.
+    var target = $"{pathBase}/{redirectUri?.TrimStart('/')}";
+
+    return Results.LocalRedirect(target);
 }).AllowAnonymous();
 
 await app.RunAsync();

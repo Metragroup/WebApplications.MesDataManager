@@ -38,30 +38,6 @@ servono a nessuno.
 
 ---
 
-### A2 — Chi ha quale ruolo Entra ID
-
-**Contesto.** I tre ruoli sono `Archive.Reader`, `Archive.Editor`, `Archive.Administrator`,
-gerarchici. Nel vecchio progetto l'`AuthService` restituiva sempre tutti i permessi (con un
-`TODO` accanto), quindi **non esiste un precedente**: chiunque aprisse l'applicazione poteva
-fare tutto.
-
-**Il punto delicato.** Introdurre permessi dove prima non c'erano e' un cambiamento di
-comportamento visibile. Se il capoturno che ha sempre corretto le posizioni delle causali si
-trova la griglia in sola lettura, la segnalazione arriva il primo giorno.
-
-**Da chiarire.**
-
-- Chi deve poter **eliminare** (oggi solo `Administrator`)? L'eliminazione su queste tabelle e'
-  rischiosa: vedi A5.
-- Il ruolo `Reader` serve davvero? Attualmente `CanRead` coincide con l'essere autenticati,
-  quindi il ruolo non e' usato. Va deciso se la sola autenticazione basta a leggere le
-  anagrafiche o se serve un ruolo esplicito.
-
-**Se non si decide.** Nessuno ha ruoli, quindi tutti vedono le anagrafiche in sola lettura e
-nessuno puo' modificare: l'applicazione risulta rotta.
-
----
-
 ### A3 — Dove finisce il versionamento dello schema
 
 **Contesto.** Il vecchio `VersionHelper` applicava script SQL incrementali all'avvio
@@ -254,13 +230,6 @@ verso Internet i font non arrivano e si ricade sullo stack di sistema (Segoe UI)
 l'aspetto cambia. Se la resa deve essere identica su tutte le postazioni, i font vanno scaricati
 in `wwwroot/fonts` e serviti da lì.
 
-### C2 — Credenziali di accesso al database in esercizio
-
-In sviluppo la stringa di connessione sta negli user secrets. In esercizio conviene
-l'autenticazione gestita (managed identity) invece di utente e password: niente da ruotare e
-nessun segreto nei file di configurazione. Dipende da dove verra' ospitata l'applicazione, che
-non e' ancora deciso.
-
 ### C3 — Quando rivedere la scelta del render mode
 
 Blazor Server e' la scelta giusta per lo scenario attuale (vedi `architettura.md`, sezione 2).
@@ -288,3 +257,81 @@ disponibili per i pacchetti effettivamente referenziati: MudBlazor 9.9.0, Micros
 `Microsoft.Extensions.Localization.Abstractions`, fornita dal framework condiviso).
 
 **Nota.** Il controllo va rifatto periodicamente, ma non e' piu' una decisione: e' manutenzione.
+
+---
+
+### C2 — Ospitalita' e credenziali di accesso al database — *chiusa il 3 settembre 2026*
+
+**Com'era.** In sviluppo la stringa di connessione sta negli user secrets. Per l'esercizio si
+ipotizzava l'autenticazione gestita (managed identity), ma dipendeva da dove sarebbe stata
+ospitata l'applicazione, che non era deciso.
+
+**Decisione.** Applicazione IIS di nome `MesDataManager` sotto il sito esistente di
+`itbsintra01.metra.local`, quindi in `https://itbsintra01.metra.local/MesDataManager`.
+L'application pool gira con un account di servizio di dominio e accede a SQL Server con
+`Trusted_Connection`: la managed identity non esiste fuori da Azure, ma il risultato pratico e'
+lo stesso — nessuna password nei file di configurazione e niente da ruotare.
+
+Ne consegue che `appsettings.Production.json` non contiene segreti e sta sotto controllo di
+versione: e' anche l'unico modo perche' sopravviva ai deploy, dato che la pubblicazione
+sovrascrive i file sul server.
+
+**Conseguenze sul codice.** Il percorso virtuale non era gestito: sei punti scrivevano indirizzi
+a partire dalla radice del server. Corretti, e verificati in locale con un path base
+temporaneo. Aggiunta la persistenza delle chiavi di Data Protection, che sotto IIS con le
+impostazioni predefinite sarebbero effimere. Il dettaglio, con la procedura, e'
+in `pubblicazione.md`.
+
+**Cosa resta.** Un secondo server (o due istanze) richiederebbe chiavi protette da certificato
+al posto di DPAPI e affinita' di sessione sul bilanciatore. Non serve oggi.
+
+---
+
+### A2 — Chi ha quale ruolo Entra ID — *chiusa il 3 settembre 2026*
+
+**Com'era.** Tre ruoli dai nomi gerarchici — `Archive.Reader`, `Archive.Editor`,
+`Archive.Administrator` — con `Editor` che inseriva e modificava e `Administrator` che in piu'
+eliminava. Nel vecchio progetto l'`AuthService` restituiva sempre tutti i permessi, quindi non
+c'era un precedente da rispettare.
+
+Il difetto di quell'impianto era il nome: `Archive.` davanti a tutto, come se l'applicazione
+fosse solo le anagrafiche. I moduli testata/righe della produzione arriveranno, e con
+`Archive.Administrator` come ruolo del controllo completo non ci sarebbe stato posto per loro.
+
+**Decisione.** Un ruolo globale, uno di sola consultazione, uno per ambito di scrittura:
+
+| Ruolo | Legge | Scrive le anagrafiche | Scrive la produzione |
+|---|---|---|---|
+| `Administrator` | tutto | si' | si', quando esistera' |
+| `Reader` | tutto | no | no |
+| `Archive.Editor` | tutto | si' | no |
+| `Production.Editor` | tutto | no | si', quando esistera' |
+
+**La lettura non si divide per ambito, la scrittura si'.** Un `Reader` vede anagrafiche e
+produzione; un editor scrive il suo ambito e legge il resto. Dividere anche la lettura avrebbe
+significato quattro ruoli in piu' per proteggere dati che in stabilimento si guardano a vicenda.
+
+**Solo chi ha un ruolo entra.** *Assignment required = Yes* sull'enterprise application: un
+account del tenant non assegnato viene fermato da Entra ID (`AADSTS50105`) e non raggiunge
+l'applicazione, nemmeno con l'indirizzo diretto. Ne consegue che **assegnare l'applicazione a
+qualcuno significa sempre scegliergli un ruolo**: non esiste l'assegnazione di sola apertura, e
+`Reader` e' il ruolo che serve a quello.
+
+**Cosa cambia nel codice.** `UserPermissions.From` deriva i permessi di scrittura da
+`Archive.Editor` oppure `Administrator`, e la **lettura da un ruolo qualsiasi fra i quattro**:
+chi e' autenticato senza ruoli noti riceve `ArchiveException.Forbidden`, cioe' il messaggio di
+accesso negato. Il controllo duplica cio' che Entra ID fa gia', e va tenuto: se un domani quella
+impostazione venisse spostata per un altro motivo, la lettura non deve aprirsi a tutto il tenant
+in silenzio. `Production.Editor` per ora concede solo la lettura; la scrittura nascera' con le
+pagine di produzione.
+
+**Cosa si perde, e va saputo.** La separazione fra "chi modifica" e "chi elimina" non esiste:
+chi corregge una causale puo' anche cancellarla. Su queste tabelle l'eliminazione e' il gesto
+rischioso (voce A5), quindi la rete rimasta e' quella dello schema e non quella dei permessi —
+`PressFailureType` non e' eliminabile da nessuno, `Administrator` compreso. Se servisse
+distinguere, la strada e' un ruolo in piu', non un ritocco alla mappatura.
+
+**L'errore di assegnazione da aspettarsi.** `Production.Editor` a chi deve correggere le
+anagrafiche: non produce un errore, produce una griglia in sola lettura. E' il prezzo di avere
+l'ambito nel nome del ruolo, e vale la pena averlo pagato — l'alternativa era un ruolo di nome
+`Archive.` che governa la produzione.

@@ -56,8 +56,10 @@
             <ChildContent>
                 @if (Configuration.SupportsSignOut())
                 {
+                    @* L'indirizzo e' senza "/" iniziale: si risolve sulla base
+                       dell'applicazione, che sotto IIS e' /MesDataManager. *@
                     <MudMenuItem Icon="@Icons.Material.Outlined.Logout"
-                                 Href="/MicrosoftIdentity/Account/SignOut"
+                                 Href="MicrosoftIdentity/Account/SignOut"
                                  ForceLoad="true">
                         @L["Action.SignOut"]
                     </MudMenuItem>
@@ -78,7 +80,7 @@
                Variant="DrawerVariant.Responsive">
         <MudDrawerHeader Class="mes-drawer__brand">
             @* Il marchio e' anche la via di ritorno all'apertura: e' il primo gesto che si prova. *@
-            <a href="/" class="mes-drawer__home" aria-label="@L["App.Title"]">
+            <a href="@Navigation.BaseUri" class="mes-drawer__home" aria-label="@L["App.Title"]">
                 <MetraLogo Class="mes-drawer__logo" />
             </a>
         </MudDrawerHeader>
@@ -116,9 +118,12 @@
     /// </summary>
     private void SwitchCulture(string culture)
     {
+        // Entrambi gli indirizzi sono relativi alla base dell'applicazione, non alla radice
+        // del server: sotto IIS l'applicazione sta in /MesDataManager, e un "/" iniziale
+        // porterebbe l'endpoint fuori dall'applicazione.
         var current = Navigation.ToBaseRelativePath(Navigation.Uri);
-        var target = $"/culture/set?culture={Uri.EscapeDataString(culture)}" +
-                     $"&redirectUri={Uri.EscapeDataString("/" + current)}";
+        var target = $"culture/set?culture={Uri.EscapeDataString(culture)}" +
+                     $"&redirectUri={Uri.EscapeDataString(current)}";
 
         Navigation.NavigateTo(target, forceLoad: true);
     }

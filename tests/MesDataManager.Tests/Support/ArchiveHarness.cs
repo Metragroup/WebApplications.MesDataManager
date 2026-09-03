@@ -28,7 +28,12 @@ internal static class Users
         CanRead = true,
     };
 
-    public static readonly UserPermissions Editor = new()
+    /// <summary>
+    /// Scrive ma non elimina. Non corrisponde a nessun ruolo Entra ID: e' una combinazione di
+    /// permessi, e serve a verificare che il servizio controlli <c>CanDelete</c> per conto suo
+    /// invece di dedurlo dal poter modificare.
+    /// </summary>
+    public static readonly UserPermissions Writer = new()
     {
         UserName = "redattore",
         IsAuthenticated = true,

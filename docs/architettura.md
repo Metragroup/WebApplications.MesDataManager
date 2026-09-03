@@ -255,8 +255,24 @@ estendere a tutta l'applicazione.
 ## 8. Entra ID, con ruoli applicativi e non gruppi
 
 **Decisione.** Autenticazione OpenID Connect verso Microsoft Entra ID. I permessi derivano dai
-**ruoli dell'app registration** (claim `roles`): `Archive.Reader`, `Archive.Editor`,
-`Archive.Administrator`, gerarchici.
+**ruoli dell'app registration** (claim `roles`): `Administrator`, `Reader`, `Archive.Editor`,
+`Production.Editor`.
+
+**Ambiti, non una gerarchia.** `Archive.Editor` gestisce le anagrafiche, `Production.Editor` i
+dati di produzione — pagine che non esistono ancora, quindi la sua parte di scrittura e' futura
+— `Administrator` vale su tutto e `Reader` solo consulta. I ruoli non si sommano in scala:
+l'ambito sta nel nome perche' questa applicazione non e' solo le anagrafiche.
+
+**La lettura non si divide per ambito, la scrittura si'.** Un `Reader` vede tutto; un editor
+scrive il suo ambito e legge il resto.
+
+**Serve un ruolo anche solo per leggere.** Chi e' autenticato ma non ha nessuno dei quattro
+ruoli riceve accesso negato. Entra ID lo fermerebbe prima — l'applicazione richiede
+l'assegnazione — ma il controllo e' ripetuto nel codice di proposito: la riservatezza dei dati
+non deve poggiare su un'impostazione del portale, che qualcuno potra' spostare in futuro per
+un motivo che non ha niente a che vedere con questi dati.
+
+Deciso il 3 settembre 2026: registro delle decisioni, voce A2.
 
 **Perche' i ruoli e non i gruppi di dominio.** I gruppi appartengono alla struttura
 organizzativa del tenant, che cambia per motivi che non hanno nulla a che vedere con questa

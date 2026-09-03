@@ -4,7 +4,14 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <base href="/" />
+    @* Sotto IIS l'applicazione vive in un percorso virtuale (/MesDataManager): con un "/"
+       fisso il browser cercherebbe blazor.web.js, i fogli di stile e ogni rotta nella radice
+       del server, e la pagina resterebbe bianca. Il percorso lo mette l'ASP.NET Core Module
+       in PathBase; in locale e' vuoto e la base torna a essere "/", quindi non serve
+       configurare nulla per lo sviluppo.
+       Il "~/" delle pagine Razor qui non funziona: nei componenti non passa il tag helper
+       che lo risolverebbe, e finirebbe nell'HTML cosi' com'e'. *@
+    <base href="@BaseHref" />
 
     <link rel="stylesheet" href="@Assets["_content/MudBlazor/MudBlazor.min.css"]" />
     <link rel="stylesheet" href="@Assets["css/app.css"]" />
@@ -22,3 +29,18 @@
 </body>
 
 </html>
+
+@code {
+    /// <summary>
+    /// Il documento e' sempre reso lato server: qui <see cref="HttpContext"/> c'e' e non e'
+    /// il caso dei componenti interattivi, dove sarebbe nullo.
+    /// </summary>
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    /// <summary>
+    /// Base dei percorsi relativi del documento. Deve finire con "/", altrimenti il browser
+    /// scarta l'ultimo segmento nel risolvere gli indirizzi relativi.
+    /// </summary>
+    private string BaseHref => $"{HttpContext?.Request.PathBase.Value?.TrimEnd('/')}/";
+}

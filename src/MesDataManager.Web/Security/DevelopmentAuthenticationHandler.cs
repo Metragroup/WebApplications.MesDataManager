@@ -20,15 +20,20 @@ public sealed class DevelopmentAuthenticationOptions : AuthenticationSchemeOptio
     public string DisplayName { get; set; } = "Utente di sviluppo";
 
     /// <summary>
-    /// Ruoli attribuiti all'utente finto. Ridurli e' il modo piu' rapido per provare che
-    /// i permessi funzionino davvero: togliendo Administrator devono sparire i pulsanti
-    /// di eliminazione, togliendo Editor anche quelli di modifica e inserimento.
+    /// Ruoli attribuiti all'utente finto. Ridurli e' il modo piu' rapido per provare che i
+    /// permessi funzionino davvero:
+    /// <list type="bullet">
+    /// <item>solo <c>Reader</c>: nessun pulsante di scrittura, sola consultazione;</item>
+    /// <item>array vuoto: accesso negato, la griglia non si apre nemmeno in lettura;</item>
+    /// <item>togliere <c>Production.Editor</c>: nessuna differenza, le pagine di produzione
+    /// non esistono ancora.</item>
+    /// </list>
     /// </summary>
     public string[] Roles { get; set; } =
     [
-        AppRoles.ArchiveReader,
+        AppRoles.Administrator,
         AppRoles.ArchiveEditor,
-        AppRoles.ArchiveAdministrator,
+        AppRoles.ProductionEditor,
     ];
 }
 

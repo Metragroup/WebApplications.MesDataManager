@@ -6,16 +6,34 @@ namespace MesDataManager.Application.Security;
 /// Ruoli applicativi. Vanno mappati sui ruoli dell'app registration di Entra ID
 /// (claim "roles") e non su gruppi di dominio, per non dipendere dal tenant.
 /// </summary>
+/// <remarks>
+/// Un ruolo globale, uno di sola consultazione e uno per ambito di scrittura. Servono tutti:
+/// senza almeno un ruolo non si vedono i dati, quindi assegnare l'applicazione a qualcuno
+/// significa sempre scegliergli un ruolo.
+/// </remarks>
 public static class AppRoles
 {
-    /// <summary>Consultazione delle anagrafiche.</summary>
-    public const string ArchiveReader = "Archive.Reader";
+    /// <summary>Controllo completo: ogni ambito, presente e futuro.</summary>
+    public const string Administrator = "Administrator";
 
-    /// <summary>Inserimento e modifica.</summary>
+    /// <summary>
+    /// Consultazione di tutti i dati, anagrafiche e produzione. Non e' un ambito: la lettura non
+    /// si divide, si divide la scrittura.
+    /// </summary>
+    public const string Reader = "Reader";
+
+    /// <summary>Gestione delle anagrafiche: inserimento, modifica ed eliminazione.</summary>
     public const string ArchiveEditor = "Archive.Editor";
 
-    /// <summary>Eliminazione e operazioni sulle anagrafiche governate dall'ERP.</summary>
-    public const string ArchiveAdministrator = "Archive.Administrator";
+    /// <summary>
+    /// Gestione dei dati di produzione: lotti, billette, fermate.
+    /// <para>
+    /// Sulle anagrafiche non concede nulla, ed e' il motivo per cui l'ambito sta nel nome del
+    /// ruolo. Le pagine di produzione non esistono ancora: i permessi corrispondenti nasceranno
+    /// con loro, quindi oggi il ruolo e' assegnabile ma inerte.
+    /// </para>
+    /// </summary>
+    public const string ProductionEditor = "Production.Editor";
 }
 
 /// <summary>
@@ -43,11 +61,19 @@ public sealed record UserPermissions
     public bool CanDelete { get; init; }
 
     /// <summary>
-    /// Deriva i permessi dai claim. I ruoli sono gerarchici: un amministratore puo' fare tutto
-    /// quello che puo' fare un editor, per non dover assegnare tre ruoli alla stessa persona.
+    /// Deriva i permessi dai claim.
     /// <para>
-    /// La lettura coincide con l'essere autenticati: il ruolo <c>Archive.Reader</c> esiste ma non
-    /// e' ancora richiesto da nulla. Vedi <c>docs/decisioni-aperte.md</c>, voce A2.
+    /// Le anagrafiche le scrivono <c>Archive.Editor</c> e <c>Administrator</c>: inserimento,
+    /// modifica ed eliminazione stanno insieme, un ruolo che modifica puo' anche eliminare.
+    /// <c>Production.Editor</c> qui non concede nulla. Deciso il 3 settembre 2026, vedi
+    /// <c>docs/decisioni-aperte.md</c>, voce A2.
+    /// </para>
+    /// <para>
+    /// Per leggere serve un ruolo qualsiasi fra quelli noti: chi e' autenticato ma non ne ha
+    /// nessuno non vede i dati, nemmeno con l'indirizzo diretto. Entra ID lo ferma prima
+    /// (<c>Assignment required = Yes</c>), ma il controllo e' ripetuto qui di proposito —
+    /// altrimenti la riservatezza dipenderebbe da un interruttore nel portale, e un domani
+    /// spostato per un altro motivo aprirebbe le anagrafiche a tutto il tenant in silenzio.
     /// </para>
     /// </summary>
     public static UserPermissions From(ClaimsPrincipal? principal)
@@ -63,18 +89,24 @@ public sealed record UserPermissions
             ?? principal.FindFirst(ClaimTypes.Name)?.Value
             ?? "anonimo";
 
-        var isEditor = principal.IsInRole(AppRoles.ArchiveEditor);
-        var isAdministrator = principal.IsInRole(AppRoles.ArchiveAdministrator);
+        var canWriteArchives =
+            principal.IsInRole(AppRoles.ArchiveEditor) ||
+            principal.IsInRole(AppRoles.Administrator);
+
+        var canRead =
+            canWriteArchives ||
+            principal.IsInRole(AppRoles.Reader) ||
+            principal.IsInRole(AppRoles.ProductionEditor);
 
         return new UserPermissions
         {
             UserName = userName,
             DisplayName = principal.FindFirst("name")?.Value ?? userName,
             IsAuthenticated = true,
-            CanRead = true,
-            CanInsert = isEditor || isAdministrator,
-            CanUpdate = isEditor || isAdministrator,
-            CanDelete = isAdministrator,
+            CanRead = canRead,
+            CanInsert = canWriteArchives,
+            CanUpdate = canWriteArchives,
+            CanDelete = canWriteArchives,
         };
     }
 }
