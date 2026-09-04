@@ -33,6 +33,7 @@ sistemati per questa pubblicazione:
 |---|---|---|
 | `Components/App.razor` | `<base href>` ricavato da `PathBase` | e' la base su cui il browser risolve script, fogli di stile e rotte |
 | `Components/Layout/MainLayout.razor` | uscita e cambio lingua senza `/` iniziale | si risolvono sulla base dell'applicazione |
+| `Components/Layout/MainNavigation.razor` | voci del menu senza `/` iniziale | idem: e' il punto sfuggito alla prima pubblicazione, vedi sotto |
 | `Components/Layout/MainLayout.razor` | marchio verso `Navigation.BaseUri` | il ritorno all'apertura resta dentro l'applicazione |
 | `Program.cs` | endpoint `culture/set`: `PathBase` riaggiunto al rinvio | `LocalRedirect` scrive l'indirizzo cosi' com'e' |
 | `Program.cs` | cookie di cultura con `Path` = percorso dell'applicazione | il nome del cookie e' quello predefinito, uguale a quello delle altre applicazioni dell'host |
@@ -41,6 +42,20 @@ sistemati per questa pubblicazione:
 Nel documento HTML servito da un percorso virtuale la base deve risultare
 `<base href="/MesDataManager/">`, con la barra finale: senza, il browser scarta l'ultimo segmento.
 E' la prima cosa da guardare (`Ctrl+U` sulla pagina) quando l'applicazione appare bianca.
+
+**Un `<base href>` giusto non basta**, ed e' la trappola di questa sezione: un indirizzo con `/`
+iniziale e' relativo alla radice del **server** e la base non lo riguarda affatto — il browser
+la ignora e nessun sintomo appare fino al clic. Alla prima pubblicazione le voci del menu erano
+`/anagrafiche/{chiave}` e portavano a `https://itbsintra01.metra.local/anagrafiche/...`, mentre
+lo stesso indirizzo con il prefisso, digitato a mano, funzionava. La regola, per ogni indirizzo
+scritto in un componente: **niente `/` iniziale**. Le eccezioni sono i `@page`, che sono modelli
+di rotta e non indirizzi, e li' la barra iniziale e' corretta.
+
+Il controllo che li trova tutti, da `src/MesDataManager.Web`:
+
+```powershell
+Select-String -Path .\Components\*.razor -Recurse -Pattern 'Href="/|href="/'
+```
 
 **Verificato in locale** aggiungendo temporaneamente un path base: base corretta, risorse servite
 sotto il percorso virtuale, cambio lingua che rinvia a `/MesDataManager/archive/Reason` e cookie
@@ -98,6 +113,16 @@ primo passo e' verificare che sia quella giusta e completarla. Su quella registr
 I due percorsi restano `/signin-oidc` e `/signout-callback-oidc` in configurazione: il prefisso
 `/MesDataManager` lo aggiunge ASP.NET Core da solo. In Entra ID va invece registrato l'indirizzo
 completo, prefisso compreso.
+
+**Il confronto e' letterale, maiuscole comprese.** L'applicazione genera sempre
+`/MesDataManager/...`, con questa capitalizzazione: non dipende dal browser ne' da come si digita
+l'indirizzo per aprire il sito, e' il nome dell'applicazione IIS (sezione 6) a deciderla. Se in
+Entra ID il redirect URI e' registrato come `.../mesdatamanager/...` il primo accesso *senza* una
+sessione gia' valida fallisce con `AADSTS50011` e il messaggio lo dice esplicitamente
+(*"did not match because of case sensitivity"*) — mentre chi ha gia' un cookie di sessione da un
+accesso precedente non se ne accorge, perche' non rifa' il giro verso Entra ID. Vale per entrambi
+i campi, redirect URI e front-channel logout URL: **verificato**, causa di un accesso negato alla
+prima pubblicazione.
 
 **App roles** (*App registration -> App roles*), con `Value` identico a queste stringhe, che il
 codice confronta letteralmente:
@@ -186,6 +211,15 @@ richiede client secret — quindi puo' stare sotto controllo di versione. E' il 
 dell'account di servizio: niente da custodire, niente da ruotare, niente user secrets in
 esercizio.
 
+**Le due impostazioni di percorso vogliono la barra rovesciata doppia.** In JSON `\` apre una
+sequenza di escape, quindi `"C:\ProgramData\MesDataManager\keys"` non e' una stringa valida:
+`\P` non e' un escape riconosciuto. Il lettore di configurazione non e' indulgente su questo e
+il file non viene nemmeno letto — l'applicazione non parte, con `HTTP 500.30` e in log un
+`JsonReaderException` che nomina la posizione ma non l'impostazione. La forma giusta e'
+`"C:\\ProgramData\\MesDataManager\\keys"`; la barra normale (`C:/ProgramData/...`) funziona
+anche lei, ma le due qui usate sono doppie. La stringa di connessione ha lo stesso problema
+sul nome dell'istanza: `ITBSDB01\\SCADA2014`.
+
 `ASPNETCORE_ENVIRONMENT` non va impostata: assente vale `Production`, che e' quello che serve. La
 modalita' di autenticazione di sviluppo, se arrivasse qui per un file dimenticato, **impedisce
 l'avvio** invece di far partire l'applicazione senza controlli.
@@ -199,6 +233,12 @@ l'avvio** invece di far partire l'applicazione senza controlli.
 ```powershell
 dotnet publish src\MesDataManager.Web -c Release -o C:\pubblicazioni\MesDataManager
 ```
+
+Non pubblicare dentro il repository (`bin\Release\net10.0` del progetto): quella cartella la
+sovrascrive ogni build, di sviluppo comprese, e non e' il contenuto che va copiato sul server.
+`C:\pubblicazioni\MesDataManager` e' solo l'appoggio locale da cui si copia manualmente
+(sezione "Copia dei file", piu' sotto) — con l'attuale processo non esiste un passo automatico
+che porti i file sul server.
 
 **Application pool** (*IIS Manager -> Application Pools -> Add*): nome `MesDataManager`.
 
@@ -215,6 +255,20 @@ dotnet publish src\MesDataManager.Web -c Release -o C:\pubblicazioni\MesDataMana
 **Applicazione** (*Sites -> il sito -> Add Application*): alias `MesDataManager`, application pool
 `MesDataManager`, percorso fisico `C:\inetpub\MesDataManager` — **fuori** da `wwwroot`, altrimenti
 il sito padre servirebbe quei file anche come contenuto statico, `appsettings` compresi.
+
+**Non e' un dettaglio da poco: e' quello che ha dato il primo 403.** Con la cartella dentro
+`wwwroot` (es. `C:\inetpub\wwwroot\MesDataManager`), se non e' stata anche convertita in
+*Application* (icona a globo nell'albero di IIS Manager, non a cartella) le richieste le gestisce
+il sito padre come contenuto statico: senza documento predefinito e con l'elenco cartelle
+disabilitato il risultato e' esattamente `403 - Forbidden: Access is denied`, prima ancora che
+il modulo ASP.NET Core entri in gioco. Due controlli, in questo ordine:
+
+1. Nell'albero di IIS Manager, la cartella ha l'icona di applicazione? Se e' una cartella
+   semplice, *Convert to Application*, assegnando il pool `MesDataManager`.
+2. Aprire `https://itbsintra01.metra.local/MesDataManager/appsettings.Production.json` dal
+   browser: se il file si scarica o si vede il contenuto, la cartella resta esposta come statica
+   nonostante l'applicazione ci sia — la stringa di connessione compresa. In quel caso il
+   percorso fisico va spostato fuori da `wwwroot`, non solo convertito.
 
 Sulla cartella dell'applicazione l'account di servizio ha bisogno di *Lettura ed esecuzione*; le
 due cartelle in `ProgramData` sono quelle in cui serve *Modifica* (sezione 2).
@@ -239,6 +293,7 @@ In ordine, perche' ogni passo dimostra una cosa diversa:
 | Prova | Attesa | Cosa dimostra |
 |---|---|---|
 | Aprire `https://itbsintra01.metra.local/MesDataManager` | rinvio a Microsoft, ritorno all'applicazione | uscita di rete, redirect URI, certificato |
+| Aprire `.../MesDataManager/appsettings.Production.json` | `404` | la cartella non e' servita come contenuto statico, neanche in parte: sezione 6 |
 | La pagina si disegna e il menu risponde al clic | interfaccia viva | base dei percorsi e WebSocket |
 | Aprire un'anagrafica | griglia popolata | connessione al database e permessi SQL |
 | Cambiare lingua | resta sotto `/MesDataManager` | endpoint di cultura e cookie |
@@ -259,7 +314,11 @@ tutto il resto funzionerebbe comunque, e il problema si manifesterebbe giorni do
 | Sintomo | Causa quasi certa |
 |---|---|
 | Pagina bianca, `404` su `blazor.web.js` | base dei percorsi: guardare `<base href>` nel sorgente della pagina |
-| `AADSTS50011` (redirect URI mismatch) | il redirect URI in Entra ID non ha il prefisso `/MesDataManager`, o e' `http` |
+| `403 - Forbidden: Access is denied` all'apertura dell'indirizzo, prima di qualunque rinvio | il percorso fisico e' dentro `wwwroot` e la cartella non e' un'*Application* IIS (icona a globo), oppure l'account di servizio non ha *Lettura ed esecuzione* sulla cartella: sezione 6 |
+| Un clic nel menu porta a un indirizzo **senza** `/MesDataManager`, che digitato a mano funziona | quel collegamento ha un `/` iniziale, che ignora il `<base href>`: sezione 1 |
+| `AADSTS50011` (redirect URI mismatch) | il redirect URI in Entra ID non ha il prefisso `/MesDataManager`, o e' `http`. Se il messaggio precisa *"did not match because of case sensitivity"*, il confronto e' letterale e la causa e' la capitalizzazione: verificare che il valore registrato sia identico, maiuscole comprese, a quello riportato nel messaggio (`.../MesDataManager/signin-oidc`, non `.../mesdatamanager/...`) |
+| Funziona in un browser, in un altro da' `AADSTS50011` alla prima apertura | non e' il browser: il primo ha un cookie di sessione valido da un accesso precedente e non rifa' il giro verso Entra ID, quindi non nota il redirect URI sbagliato. La prova e' aprire lo stesso browser in incognito — senza cookie, fallisce anche li' |
+| `AADSTS900971: No reply address provided` | sulla registrazione del `ClientId` in uso non c'e' nessun indirizzo di risposta utilizzabile. **Non e' un mismatch** — quello e' `AADSTS50011`: qui Entra ID non ne trova nessuno da confrontare. Le due cause: il redirect URI e' stato messo su un'altra registrazione (verificare che il `ClientId` del portale sia quello di `appsettings.json`), oppure e' stato aggiunto sotto la piattaforma sbagliata — *Single-page application* o *Mobile and desktop applications* invece di **Web** |
 | `AADSTS700054` | manca la spunta *ID tokens* nella registrazione |
 | `AADSTS50105` | utente non assegnato all'applicazione: e' il comportamento voluto. Se riguarda qualcuno che deve entrare, va assegnato — come `Reader` se deve solo consultare |
 | `IDX20803: Unable to obtain configuration` | il server non raggiunge `login.microsoftonline.com` |
