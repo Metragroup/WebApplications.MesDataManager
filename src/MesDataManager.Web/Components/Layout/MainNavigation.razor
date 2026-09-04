@@ -42,7 +42,10 @@
                                      ExpandedChanged="@(value => _expanded[current] = value)">
                             @foreach (var descriptor in entries)
                             {
-                                <MudNavLink Href="@($"/anagrafiche/{descriptor.Key}")" Match="NavLinkMatch.All">
+                                @* Indirizzo relativo alla base dell'applicazione: un "/" iniziale
+                                   ignora il <base href> e sotto IIS porterebbe alla radice del
+                                   server, fuori da /MesDataManager. *@
+                                <MudNavLink Href="@($"anagrafiche/{descriptor.Key}")" Match="NavLinkMatch.All">
                                     @L[descriptor.NameKey]
                                 </MudNavLink>
                             }
