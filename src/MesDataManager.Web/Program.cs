@@ -85,6 +85,30 @@ builder.Services.AddMesInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
+// Sotto IIS il PathBase rispecchia la capitalizzazione con cui e' stata digitata la
+// richiesta, non quella dell'alias configurato in IIS: ".../MesDataManager" e
+// ".../mesdatamanager" restano entrambi validi, ma generano un PathBase diverso l'uno
+// dall'altro, e con esso un redirect_uri diverso per Entra ID, che li confronta lettera
+// per lettera (voce C4 del registro delle decisioni). Si normalizza qui, prima di
+// qualunque altra pipeline — autenticazione compresa — cosi' l'applicazione vede sempre
+// lo stesso PathBase indipendentemente da come e' stata raggiunta.
+app.Use(async (ctx, next) =>
+{
+    var pathBase = ctx.Request.PathBase.Value;
+    if (!string.IsNullOrEmpty(pathBase))
+    {
+        var lower = pathBase.ToLowerInvariant();
+        if (!string.Equals(pathBase, lower, StringComparison.Ordinal))
+        {
+            var target = lower + ctx.Request.Path + ctx.Request.QueryString;
+            ctx.Response.Redirect(target, permanent: true);
+            return;
+        }
+    }
+
+    await next();
+});
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
