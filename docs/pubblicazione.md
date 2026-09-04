@@ -105,24 +105,30 @@ primo passo e' verificare che sia quella giusta e completarla. Su quella registr
 
 **Authentication.**
 
-- Redirect URI, tipo *Web*: `https://itbsintra01.metra.local/MesDataManager/signin-oidc`
-- Front-channel logout URL: `https://itbsintra01.metra.local/MesDataManager/signout-callback-oidc`
+- Redirect URI, tipo *Web*: `https://itbsintra01.metra.local/mesdatamanager/signin-oidc`
+- Front-channel logout URL: `https://itbsintra01.metra.local/mesdatamanager/signout-callback-oidc`
 - *Implicit grant and hybrid flows*: spuntare **ID tokens**. Serve perche' il flusso e' di sola
   autenticazione, senza client secret. Se manca, il primo accesso risponde `AADSTS700054`.
 
 I due percorsi restano `/signin-oidc` e `/signout-callback-oidc` in configurazione: il prefisso
-`/MesDataManager` lo aggiunge ASP.NET Core da solo. In Entra ID va invece registrato l'indirizzo
-completo, prefisso compreso.
+lo aggiunge ASP.NET Core da solo. In Entra ID va invece registrato l'indirizzo completo, prefisso
+compreso — **tutto minuscolo**, per la ragione che segue.
 
-**Il confronto e' letterale, maiuscole comprese.** L'applicazione genera sempre
-`/MesDataManager/...`, con questa capitalizzazione: non dipende dal browser ne' da come si digita
-l'indirizzo per aprire il sito, e' il nome dell'applicazione IIS (sezione 6) a deciderla. Se in
-Entra ID il redirect URI e' registrato come `.../mesdatamanager/...` il primo accesso *senza* una
-sessione gia' valida fallisce con `AADSTS50011` e il messaggio lo dice esplicitamente
-(*"did not match because of case sensitivity"*) — mentre chi ha gia' un cookie di sessione da un
-accesso precedente non se ne accorge, perche' non rifa' il giro verso Entra ID. Vale per entrambi
-i campi, redirect URI e front-channel logout URL: **verificato**, causa di un accesso negato alla
-prima pubblicazione.
+**Il confronto e' letterale, maiuscole comprese — e IIS instrada senza distinguerle.**
+`https://itbsintra01.metra.local/MesDataManager` e la stessa cosa con `/mesdatamanager` sono
+entrambi indirizzi validi per raggiungere l'applicazione, ma il modulo ASP.NET Core passa il
+`PathBase` cosi' come e' stato digitato, non normalizzato secondo l'alias configurato: generano
+quindi un `redirect_uri` diverso l'uno dall'altro, e Entra ID puo' accettarne uno solo. Chi aveva
+gia' un cookie di sessione valido non se ne accorgeva, perche' non rifaceva il giro verso Entra
+ID — il sintomo sembrava dipendere dal browser, ma non era cosi' (voce C4 del registro delle
+decisioni: **verificato**, causa di un accesso negato alla prima pubblicazione).
+
+Non e' un problema che si risolve registrando piu' varianti in Entra ID: si rompe alla prima
+maiuscola non prevista. La correzione e' in `Program.cs`, primo middleware della pipeline: un
+accesso con maiuscole diventa un rinvio permanente (301) alla stessa pagina tutta minuscola,
+prima che qualunque altra cosa — autenticazione compresa — veda la richiesta. Da qui in poi
+l'applicazione genera sempre `redirect_uri` in minuscolo, indipendentemente da come e' stata
+raggiunta: e' per questo che i due indirizzi sopra sono minuscoli.
 
 **App roles** (*App registration -> App roles*), con `Value` identico a queste stringhe, che il
 codice confronta letteralmente:
@@ -316,7 +322,7 @@ tutto il resto funzionerebbe comunque, e il problema si manifesterebbe giorni do
 | Pagina bianca, `404` su `blazor.web.js` | base dei percorsi: guardare `<base href>` nel sorgente della pagina |
 | `403 - Forbidden: Access is denied` all'apertura dell'indirizzo, prima di qualunque rinvio | il percorso fisico e' dentro `wwwroot` e la cartella non e' un'*Application* IIS (icona a globo), oppure l'account di servizio non ha *Lettura ed esecuzione* sulla cartella: sezione 6 |
 | Un clic nel menu porta a un indirizzo **senza** `/MesDataManager`, che digitato a mano funziona | quel collegamento ha un `/` iniziale, che ignora il `<base href>`: sezione 1 |
-| `AADSTS50011` (redirect URI mismatch) | il redirect URI in Entra ID non ha il prefisso `/MesDataManager`, o e' `http`. Se il messaggio precisa *"did not match because of case sensitivity"*, il confronto e' letterale e la causa e' la capitalizzazione: verificare che il valore registrato sia identico, maiuscole comprese, a quello riportato nel messaggio (`.../MesDataManager/signin-oidc`, non `.../mesdatamanager/...`) |
+| `AADSTS50011` (redirect URI mismatch) | il redirect URI in Entra ID non ha il prefisso, o e' `http`. Se il messaggio precisa *"did not match because of case sensitivity"* nonostante l'indirizzo registrato sia quello giusto, guardare l'indirizzo con cui si e' aperta l'applicazione: se ha maiuscole dove la sezione 3 dice minuscolo, la correzione automatica in `Program.cs` non e' nel pacchetto pubblicato, o e' una vecchia sessione da prima che venisse aggiunta |
 | Funziona in un browser, in un altro da' `AADSTS50011` alla prima apertura | non e' il browser: il primo ha un cookie di sessione valido da un accesso precedente e non rifa' il giro verso Entra ID, quindi non nota il redirect URI sbagliato. La prova e' aprire lo stesso browser in incognito — senza cookie, fallisce anche li' |
 | `AADSTS900971: No reply address provided` | sulla registrazione del `ClientId` in uso non c'e' nessun indirizzo di risposta utilizzabile. **Non e' un mismatch** — quello e' `AADSTS50011`: qui Entra ID non ne trova nessuno da confrontare. Le due cause: il redirect URI e' stato messo su un'altra registrazione (verificare che il `ClientId` del portale sia quello di `appsettings.json`), oppure e' stato aggiunto sotto la piattaforma sbagliata — *Single-page application* o *Mobile and desktop applications* invece di **Web** |
 | `AADSTS700054` | manca la spunta *ID tokens* nella registrazione |

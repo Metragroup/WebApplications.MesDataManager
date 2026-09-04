@@ -335,3 +335,36 @@ distinguere, la strada e' un ruolo in piu', non un ritocco alla mappatura.
 anagrafiche: non produce un errore, produce una griglia in sola lettura. E' il prezzo di avere
 l'ambito nel nome del ruolo, e vale la pena averlo pagato — l'alternativa era un ruolo di nome
 `Archive.` che governa la produzione.
+
+---
+
+### C4 — Maiuscole nel percorso virtuale e redirect URI di Entra ID — *chiusa il 4 settembre 2026*
+
+**Com'era.** Scoperto in esercizio: `https://itbsintra01.metra.local/MesDataManager` e
+`https://itbsintra01.metra.local/mesdatamanager` sono entrambi indirizzi validi per IIS, che
+instrada per nome senza distinguere le maiuscole. Il modulo ASP.NET Core pero' passa
+all'applicazione il `PathBase` cosi' come e' stato digitato, non normalizzato secondo l'alias
+configurato: l'applicazione generava quindi un `redirect_uri` diverso a seconda di come si era
+raggiunta, e Entra ID confronta quella stringa lettera per lettera (`AADSTS50011`,
+*"did not match because of case sensitivity"*). Chi aveva gia' una sessione valida non se ne
+accorgeva — il cookie di autenticazione bastava, senza rifare il giro verso Entra ID — il che ha
+reso il sintomo intermittente e legato in apparenza al browser, non alla configurazione.
+
+**Decisione.** Non registrare piu' varianti in Entra ID (soluzione che si romperebbe alla prima
+maiuscola non prevista) ne' vincolare la questione a un solo alias IIS: normalizzare il
+`PathBase` a tutto minuscolo dentro l'applicazione, prima di qualunque altra pipeline. Un
+accesso con maiuscole diventa un rinvio permanente (301) alla stessa pagina in minuscolo, e da
+li' in poi l'applicazione vede sempre lo stesso `PathBase` indipendentemente da come e' stata
+raggiunta. Il redirect URI e il front-channel logout URL in Entra ID restano quindi in
+minuscolo, un'unica volta.
+
+**Cosa cambia nel codice.** Un middleware in cima a `Program.cs`, prima dell'autenticazione:
+confronta `PathBase` con la sua forma minuscola e rinvia se diverso. Verificato riproducendo il
+comportamento del modulo ASP.NET Core con un middleware di prova (il `PathBase` reale segue la
+capitalizzazione della richiesta, non quella dell'alias) — richiesta con maiuscole rinviata in
+minuscolo con percorso e query stringa intatti, richiesta gia' in minuscolo servita senza
+rinvii.
+
+**Cosa resta.** Chi ha gia' un cookie di autenticazione scritto con un `PathBase` in
+maiuscolo (da prima di questa correzione) lo perde alla prima richiesta successiva, perche' il
+percorso del cookie non combacia piu': si ripresenta il login, una volta sola.
