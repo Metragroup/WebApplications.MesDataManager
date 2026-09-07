@@ -49,6 +49,37 @@ public sealed class MesDbContext(DbContextOptions<MesDbContext> options) : DbCon
 
     public DbSet<Company> Companies => Set<Company>();
 
+    public DbSet<PressDowntimeType> PressDowntimeTypes => Set<PressDowntimeType>();
+
+    /// <summary>Schema Press.BatchDowntime: 4,59M righe, fuori dallo schema MasterData.</summary>
+    public DbSet<BatchDowntime> BatchDowntimes => Set<BatchDowntime>();
+
+    /// <summary>Schema Press.Batch: i lotti di estrusione, 240 mila righe.</summary>
+    public DbSet<Batch> Batches => Set<Batch>();
+
+    /// <summary>Schema Press.BatchBillet: le billette dei lotti, 4,95M righe.</summary>
+    public DbSet<BatchBillet> BatchBillets => Set<BatchBillet>();
+
+    /// <summary>
+    /// Lotti scomposti per lunghezza barra e turno, dalla funzione tabellare
+    /// <c>EF.ufn_BatchByLengthShift</c>. E' una funzione e non una vista: il periodo e' un
+    /// parametro, non un filtro, quindi va passato qui e non nella <c>Where</c>.
+    /// <para>
+    /// Mappata come funzione componibile: <c>Where</c>, <c>OrderBy</c> e la paginazione si
+    /// aggiungono alla chiamata e finiscono nella stessa query, senza portare in memoria le
+    /// righe scartate.
+    /// </para>
+    /// </summary>
+    public IQueryable<BatchByLengthShift> BatchesByLengthShift(DateTime startTs, DateTime stopTs) =>
+        FromExpression(() => BatchesByLengthShift(startTs, stopTs));
+
+    /// <summary>
+    /// Turni di una pressa in un periodo, dalla funzione <c>Press.ufn_GetShifts</c>. E' la
+    /// definizione di turno dell'impianto: va usata al posto di ricavare i turni dalle billette.
+    /// </summary>
+    public IQueryable<PressShift> PressShifts(string pressId, DateTime from, DateTime to) =>
+        FromExpression(() => PressShifts(pressId, from, to));
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(MasterDataSchema);
@@ -247,5 +278,136 @@ public sealed class MesDbContext(DbContextOptions<MesDbContext> options) : DbCon
             e.Property(x => x.CompanyId).HasColumnName("CompanyID").HasColumnType("char(4)").ValueGeneratedNever();
             e.Property(x => x.Description).HasMaxLength(50).IsRequired();
         });
+
+        modelBuilder.Entity<PressDowntimeType>(e =>
+        {
+            e.ToTable("PressDowntimeType");
+            e.HasKey(x => x.PressDowntimeTypeId);
+            e.Property(x => x.PressDowntimeTypeId).HasColumnName("PressDowntimeTypeID").ValueGeneratedNever();
+            e.Property(x => x.Description).HasMaxLength(50).IsRequired();
+        });
+
+        // Schema Press, non MasterData: nessuna migration parte da qui e nessuna FK e'
+        // dichiarata verso Press/PressDowntimeReason/PressDowntimeType, per lo stesso motivo di
+        // PressFailureType (tipi di colonna disallineati, vedi docs/decisioni-aperte.md).
+        //
+        // Il trigger va dichiarato: la tabella ne ha uno su INSERT/UPDATE/DELETE
+        // (TR_Press_BatchDowntime, che alimenta lo storico) e da EF Core 7 il salvataggio usa
+        // una clausola OUTPUT per rileggere la chiave generata. SQL Server rifiuta OUTPUT senza
+        // INTO su una tabella con trigger, quindi senza questa riga ogni scrittura falliva con
+        // "the target table ... cannot have any enabled triggers". Le letture non se ne
+        // accorgono, e nemmeno i test su SQLite, che non ha trigger: vedi il test
+        // Il_trigger_di_BatchDowntime_e_dichiarato_nel_modello.
+        modelBuilder.Entity<BatchDowntime>(e =>
+        {
+            e.ToTable("BatchDowntime", schema: "Press", t => t.HasTrigger("TR_Press_BatchDowntime"));
+            e.HasKey(x => x.BatchDowntimeId);
+            e.Property(x => x.BatchDowntimeId).HasColumnName("BatchDowntimeID").ValueGeneratedOnAdd();
+            e.Property(x => x.BatchDowntimeRawId).HasColumnName("BatchDowntimeRawID");
+            e.Property(x => x.PressId).HasColumnName("PressID").HasColumnType("char(3)").IsRequired();
+            e.Property(x => x.DowntimeReasonId).HasColumnName("DowntimeReasonID");
+            e.Property(x => x.DowntimeCode).HasMaxLength(4000).IsRequired();
+            e.Property(x => x.EditStatusId).HasColumnName("EditStatusID").HasColumnType("char(1)");
+        });
+
+        // Lotti e billette, schema Press. Lo schema va sempre esplicito: nel database esistono
+        // omonimi negli schemi History e ML, e leggere lo storico al posto del dato corrente
+        // sarebbe un errore silenzioso. Nessun trigger su queste due tabelle (verificato), quindi
+        // a differenza di BatchDowntime non serve dichiararne alcuno.
+        modelBuilder.Entity<Batch>(e =>
+        {
+            e.ToTable("Batch", schema: "Press");
+            e.HasKey(x => x.BatchId);
+
+            // La chiave la compone l'applicazione (pressa + yyMMddHHmmss): nessuna identity.
+            e.Property(x => x.BatchId).HasColumnName("BatchID").HasColumnType("char(15)").ValueGeneratedNever();
+            e.Property(x => x.BatchStatusId).HasColumnName("BatchStatusID");
+            e.Property(x => x.PressId).HasColumnName("PressID").HasColumnType("char(3)").IsRequired();
+            e.Property(x => x.DieId).HasColumnName("DieID").HasColumnType("varchar(20)");
+            e.Property(x => x.DieCode).HasColumnType("varchar(20)");
+            e.Property(x => x.LockTs).HasColumnName("Lock_Ts");
+            e.Property(x => x.LockUsr).HasColumnName("Lock_Usr").HasMaxLength(50);
+            e.Property(x => x.PressBatchClosingReasonId).HasColumnName("PressBatchClosingReasonID");
+            e.Property(x => x.KgRaw).HasPrecision(15, 5);
+            e.Property(x => x.KgSheared).HasPrecision(15, 5);
+            e.Property(x => x.KgExtruded).HasPrecision(15, 5);
+            e.Property(x => x.KgCut).HasPrecision(15, 5);
+            e.Property(x => x.ItemMeterWeightMasterData).HasColumnName("ItemMeterWeight_MasterData").HasPrecision(15, 5);
+            e.Property(x => x.ItemMeterWeightMes).HasColumnName("ItemMeterWeight_Mes").HasPrecision(15, 5);
+            e.Property(x => x.ItemMeterWeightTest).HasColumnName("ItemMeterWeight_Test").HasPrecision(15, 5);
+            e.Property(x => x.ItemMeterWeight).HasPrecision(15, 5);
+            e.Property(x => x.DiagnosticsStatus).HasColumnType("char(3)");
+            e.Property(x => x.DiagnosticsMsg).HasMaxLength(2000);
+            e.Property(x => x.EditStatusId).HasColumnName("EditStatusID").HasColumnType("char(1)");
+            e.HasOne<Press>().WithMany().HasForeignKey(x => x.PressId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BatchBillet>(e =>
+        {
+            e.ToTable("BatchBillet", schema: "Press");
+            e.HasKey(x => x.BatchBilletId);
+
+            e.Property(x => x.BatchBilletId).HasColumnName("BatchBilletID").ValueGeneratedOnAdd();
+            e.Property(x => x.BatchBilletRawId).HasColumnName("BatchBilletRawID");
+            e.Property(x => x.BatchId).HasColumnName("BatchID").HasColumnType("char(15)").IsRequired();
+            e.Property(x => x.PressId).HasColumnName("PressID").HasColumnType("char(3)").IsRequired();
+            e.Property(x => x.DieId).HasColumnName("DieID").HasColumnType("varchar(20)").IsRequired();
+            e.Property(x => x.TypeId).HasColumnName("TypeID");
+            e.Property(x => x.ShiftId).HasColumnName("ShiftID").HasColumnType("char(10)");
+            e.Property(x => x.MmBarSet).HasPrecision(15, 5);
+            e.Property(x => x.KgSheared).HasPrecision(15, 5);
+            e.Property(x => x.KgExtruded).HasPrecision(15, 5);
+            e.Property(x => x.Billet1CastingId).HasColumnName("Billet1_CastingID").HasColumnType("char(20)");
+            e.Property(x => x.Billet1AlloyId).HasColumnName("Billet1_AlloyID").HasMaxLength(20);
+            e.Property(x => x.Billet1Kg).HasColumnName("Billet1_Kg").HasPrecision(15, 5);
+            e.Property(x => x.Billet2CastingId).HasColumnName("Billet2_CastingID").HasColumnType("char(20)");
+            e.Property(x => x.Billet2AlloyId).HasColumnName("Billet2_AlloyID").HasMaxLength(20);
+            e.Property(x => x.Billet2Kg).HasColumnName("Billet2_Kg").HasPrecision(15, 5);
+            e.Property(x => x.ProdId).HasColumnName("ProdID").HasColumnType("varchar(20)");
+            e.Property(x => x.EditStatusId).HasColumnName("EditStatusID").HasColumnType("char(1)");
+
+            // La chiave esterna verso il lotto esiste davvero a database
+            // (FK_Press_BatchBillet_BatchID) ma manca dall'EDMX del vecchio progetto, che faceva
+            // i join a mano. Qui e' dichiarata, senza proprieta' di navigazione come le altre.
+            e.HasOne<Batch>().WithMany().HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Press>().WithMany().HasForeignKey(x => x.PressId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // La funzione tabellare che alimenta il "dettaglio lunghezza": senza chiave, non
+        // scrivibile, e con i nomi fisici delle colonne come per le tabelle.
+        modelBuilder.Entity<BatchByLengthShift>(e =>
+        {
+            e.HasNoKey();
+            e.ToView(null);
+            e.Property(x => x.BatchId).HasColumnName("BatchID");
+            e.Property(x => x.PressId).HasColumnName("PressID");
+            e.Property(x => x.DieId).HasColumnName("DieID");
+            e.Property(x => x.ShiftId).HasColumnName("ShiftID");
+            e.Property(x => x.PressBatchClosingReasonId).HasColumnName("PressBatchClosingReasonID");
+            e.Property(x => x.DiagnosticsStatus).HasColumnName("DiagnosticsStatus");
+        });
+
+        modelBuilder
+            .HasDbFunction(typeof(MesDbContext).GetMethod(
+                nameof(BatchesByLengthShift),
+                [typeof(DateTime), typeof(DateTime)])!)
+            .HasName("ufn_BatchByLengthShift")
+            .HasSchema("EF");
+
+        // I turni delle presse: funzione a piu' istruzioni, senza chiave e non scrivibile.
+        modelBuilder.Entity<PressShift>(e =>
+        {
+            e.HasNoKey();
+            e.ToView(null);
+            e.Property(x => x.PressId).HasColumnName("PressID");
+            e.Property(x => x.ShiftId).HasColumnName("ShiftID");
+        });
+
+        modelBuilder
+            .HasDbFunction(typeof(MesDbContext).GetMethod(
+                nameof(PressShifts),
+                [typeof(string), typeof(DateTime), typeof(DateTime)])!)
+            .HasName("ufn_GetShifts")
+            .HasSchema("Press");
     }
 }

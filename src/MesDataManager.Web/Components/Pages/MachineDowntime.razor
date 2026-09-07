@@ -1,0 +1,330 @@
+@page "/produzione/fermi"
+
+@inject IMachineDowntimeService Downtimes
+@inject ILookupProvider Lookups
+@inject IUserContext User
+@inject IStringLocalizer<Strings> L
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject ILogger<MachineDowntime> Logger
+
+@*
+    Fermi macchina. A differenza delle anagrafiche la griglia non carica tutte le righe: la
+    tabella ne ha 4,59 milioni, quindi i filtri e la paginazione stanno lato server e il periodo
+    ha un massimo per tipo di fermo (7 giorni Macrofermo, 1 giorno Microfermo).
+*@
+
+<PageTitle>@L["Nav.ProductionDowntime"] &middot; @L["App.Title"]</PageTitle>
+
+<div class="mes-page">
+    <header class="mes-page__head">
+        <h1 class="mes-page__title">@L["Nav.ProductionDowntime"]</h1>
+    </header>
+
+    <ProductionFilterToolbar Presses="_presses"
+                             @bind-SelectedPress="_pressId"
+                             @bind-DateFrom="_from"
+                             @bind-DateTo="_to"
+                             OnApply="ApplyAsync"
+                             Loading="_loading">
+        <ChildContent>
+            <MudSelect T="string"
+                       @bind-Value="_typeId"
+                       Label="@L["Field.DowntimeType"]"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Class="mes-toolbar__type">
+                @foreach (var item in _types)
+                {
+                    <MudSelectItem T="string" Value="@item.Value">@item.Text</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect T="string"
+                       @bind-Value="_reasonId"
+                       Label="@L["Field.DowntimeReason"]"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Class="mes-toolbar__reason">
+                @foreach (var item in ReasonOptions)
+                {
+                    <MudSelectItem T="string" Value="@item.Value">@item.Text</MudSelectItem>
+                }
+            </MudSelect>
+        </ChildContent>
+
+        <Actions>
+            @if (_permissions.CanEditProduction)
+            {
+                <MudButton StartIcon="@Icons.Material.Outlined.Add"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="AddAsync">
+                    @L["Action.New"]
+                </MudButton>
+            }
+        </Actions>
+    </ProductionFilterToolbar>
+
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+            @_error
+        </MudAlert>
+    }
+
+    <MudDataGrid @ref="_grid"
+                 T="MachineDowntimeRow"
+                 ServerData="LoadAsync"
+                 Loading="_loading"
+                 Dense="true"
+                 Hover="true"
+                 Striped="true"
+                 Bordered="false"
+                 FixedHeader="true"
+                 Class="mes-grid"
+                 Elevation="0">
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Class="pa-6">@L["Msg.NoRecords"]</MudText>
+        </NoRecordsContent>
+
+        <Columns>
+            <PropertyColumn T="MachineDowntimeRow" TProperty="string"
+                            Property="r => r.PressId"
+                            Title="@L["Field.PressId"]"
+                            Sortable="false"
+                            CellClass="mes-cell--code" />
+
+            <TemplateColumn T="MachineDowntimeRow" Title="@L["Field.DowntimeStart"]" Sortable="false">
+                <CellTemplate>@Timestamp(context.Item.StartTs)</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="MachineDowntimeRow" Title="@L["Field.DowntimeStop"]" Sortable="false">
+                <CellTemplate>@Timestamp(context.Item.StopTs)</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="MachineDowntimeRow"
+                            Title="@L["Field.DowntimeDuration"]"
+                            Sortable="false"
+                            CellClass="mes-cell--number">
+                <CellTemplate>@Duration(context.Item.Duration)</CellTemplate>
+            </TemplateColumn>
+
+            <PropertyColumn T="MachineDowntimeRow" TProperty="string"
+                            Property="r => r.ReasonDescription"
+                            Title="@L["Field.DowntimeReason"]"
+                            Sortable="false"
+                            CellClass="mes-cell--wide" />
+
+            <PropertyColumn T="MachineDowntimeRow" TProperty="string"
+                            Property="r => r.TypeDescription"
+                            Title="@L["Field.DowntimeType"]"
+                            Sortable="false" />
+
+            @if (_permissions.CanEditProduction)
+            {
+                <TemplateColumn T="MachineDowntimeRow" Sortable="false" CellClass="mes-cell--actions">
+                    <CellTemplate>
+                        <MudIconButton Icon="@Icons.Material.Outlined.Edit"
+                                       Size="Size.Small"
+                                       aria-label="@L["Action.EditRecord"]"
+                                       OnClick="@(() => EditAsync(context.Item))" />
+                        <MudIconButton Icon="@Icons.Material.Outlined.Delete"
+                                       Size="Size.Small"
+                                       Color="Color.Error"
+                                       aria-label="@L["Action.DeleteRecord"]"
+                                       OnClick="@(() => DeleteAsync(context.Item))" />
+                    </CellTemplate>
+                </TemplateColumn>
+            }
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="MachineDowntimeRow" PageSizeOptions="new[] { 25, 50, 100 }" />
+        </PagerContent>
+    </MudDataGrid>
+</div>
+
+@code {
+    /// <summary>Valore della voce "TUTTE"/"tutte le causali": nessun filtro su quella colonna.</summary>
+    private const string Any = "";
+
+    private MudDataGrid<MachineDowntimeRow>? _grid;
+
+    private IReadOnlyList<LookupItem> _presses = [];
+    private IReadOnlyList<LookupItem> _types = [];
+    private IReadOnlyList<LookupItem> _reasons = [];
+
+    private UserPermissions _permissions = UserPermissions.Anonymous;
+
+    private string _pressId = Any;
+    private string _typeId = "";
+    private string _reasonId = Any;
+    private DateTime _from = DateTime.Today;
+    private DateTime _to = DateTime.Today;
+
+    private bool _loading;
+    private string? _error;
+
+    /// <summary>Causali con davanti la voce "tutte": il filtro sulla causale e' opzionale.</summary>
+    private IEnumerable<LookupItem> ReasonOptions =>
+        new[] { new LookupItem(Any, L["Msg.AllReasons"]) }.Concat(_reasons);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _permissions = await User.GetCurrentAsync();
+        await LoadFiltersAsync();
+    }
+
+    /// <summary>
+    /// Carica gli elenchi dei filtri e sceglie i criteri predefiniti: tutte le presse, oggi,
+    /// Macrofermo. Il tipo si cerca per descrizione perche' l'id delle due righe dipende dai dati
+    /// del database.
+    /// <para>
+    /// La chiamano sia l'inizializzazione sia il primo caricamento della griglia, e la seconda
+    /// non fa nulla: la griglia chiede la sua prima pagina mentre questo metodo e' ancora in
+    /// attesa degli elenchi, e senza il richiamo da LoadAsync il tipo predefinito non sarebbe
+    /// ancora scelto — la griglia resterebbe vuota fino al primo "Applica".
+    /// </para>
+    /// </summary>
+    private async Task LoadFiltersAsync()
+    {
+        if (_types.Count > 0)
+        {
+            return;
+        }
+
+        var presses = await Lookups.GetAsync(LookupKeys.Presses);
+        _presses = [new LookupItem(Any, L["Msg.AllPresses"]), .. presses];
+
+        _reasons = await Lookups.GetAsync(LookupKeys.DowntimeReasons);
+        _types = await Lookups.GetAsync(LookupKeys.DowntimeTypes);
+
+        _typeId = _types
+            .FirstOrDefault(t => t.Text == MachineDowntimePeriodPolicy.Macrofermo)?.Value
+            ?? _types.FirstOrDefault()?.Value
+            ?? "";
+    }
+
+    /// <summary>
+    /// Carica la pagina richiesta dalla griglia. L'ordinamento e' fisso (fermi piu' recenti in
+    /// cima): con la paginazione lato server un ordinamento per colonna richiederebbe di
+    /// tradurre lo stato della griglia in ORDER BY, e sulle colonne descrittive — che arrivano
+    /// da un join — non avrebbe un indice a sostenerlo.
+    /// </summary>
+    private async Task<GridData<MachineDowntimeRow>> LoadAsync(
+        GridState<MachineDowntimeRow> state,
+        CancellationToken cancellationToken)
+    {
+        await LoadFiltersAsync();
+
+        if (!short.TryParse(_typeId, out var typeId))
+        {
+            return new GridData<MachineDowntimeRow> { Items = [], TotalItems = 0 };
+        }
+
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var page = await Downtimes.GetPageAsync(new MachineDowntimeQuery(
+                PressId: _pressId == Any ? null : _pressId,
+                DowntimeTypeId: typeId,
+                DowntimeReasonId: _reasonId == Any ? null : short.Parse(_reasonId),
+                From: _from,
+                To: _to,
+                PageNumber: state.Page + 1,
+                PageSize: state.PageSize),
+                cancellationToken);
+
+            return new GridData<MachineDowntimeRow> { Items = page.Rows, TotalItems = page.TotalCount };
+        }
+        catch (ProductionException ex)
+        {
+            // Il caso tipico e' il periodo troppo ampio per il tipo scelto: il messaggio resta
+            // in pagina sopra la griglia, cosi' l'operatore vede la regola e corregge il filtro.
+            _error = ex.Localize(L);
+            return new GridData<MachineDowntimeRow> { Items = [], TotalItems = 0 };
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Lettura dei fermi macchina non riuscita.");
+            _error = L["Error.UnexpectedError"];
+            return new GridData<MachineDowntimeRow> { Items = [], TotalItems = 0 };
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        if (_grid is { } grid)
+        {
+            await grid.ReloadServerData();
+        }
+    }
+
+    private Task AddAsync() => ShowEditorAsync(null);
+
+    private Task EditAsync(MachineDowntimeRow row) => ShowEditorAsync(row);
+
+    private async Task ShowEditorAsync(MachineDowntimeRow? row)
+    {
+        short.TryParse(_typeId, out var typeId);
+
+        var parameters = new DialogParameters<MachineDowntimeEditDialog>
+        {
+            { d => d.Existing, row },
+            { d => d.DefaultPressId, _pressId == Any ? null : _pressId },
+            { d => d.DefaultDowntimeTypeId, typeId },
+        };
+
+        var dialog = await Dialogs.ShowAsync<MachineDowntimeEditDialog>(string.Empty, parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false })
+        {
+            await ApplyAsync();
+        }
+    }
+
+    private async Task DeleteAsync(MachineDowntimeRow row)
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            L["Msg.DeleteConfirmTitle"],
+            L["Msg.DeleteConfirmText"],
+            yesText: L["Action.Delete"],
+            cancelText: L["Action.Cancel"]);
+
+        if (confirmed is not true)
+        {
+            return;
+        }
+
+        try
+        {
+            await Downtimes.DeleteAsync(row.Id);
+            Snackbar.Add(L["Msg.RecordDeleted"], Severity.Success);
+            await ApplyAsync();
+        }
+        catch (ProductionException ex)
+        {
+            Snackbar.Add(ex.Localize(L), Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Eliminazione del fermo macchina {Id} non riuscita.", row.Id);
+            Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
+        }
+    }
+
+    private static string Timestamp(DateTime value) => value.ToString("g", CultureInfo.CurrentCulture);
+
+    /// <summary>Durata in ore:minuti:secondi, con i giorni davanti solo quando ci sono.</summary>
+    private static string Duration(TimeSpan value) => value.Days > 0
+        ? value.ToString(@"d\.hh\:mm\:ss", CultureInfo.InvariantCulture)
+        : value.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
+}

@@ -6,12 +6,13 @@
 <MudDialog>
     <TitleContent>
         <MudText Typo="Typo.h6">
-            @(IsNewRecord ? L["Msg.NewRecordTitle"] : L["Msg.EditRecordTitle"]) &mdash; @L[Descriptor.NameKey]
+            @Title &mdash; @L[Descriptor.NameKey]
         </MudText>
     </TitleContent>
 
     <DialogContent>
-        @if (Descriptor.EditPolicy is ArchiveEditPolicy.MasterControlled)
+        @* In consultazione l'avviso non serve: non c'e' niente che si stia provando a scrivere. *@
+        @if (!ReadOnly && Descriptor.EditPolicy is ArchiveEditPolicy.MasterControlled)
         {
             <MudAlert Severity="Severity.Warning"
                       Variant="Variant.Outlined"
@@ -29,12 +30,12 @@
         }
 
         <MudGrid Spacing="2">
-            @foreach (var field in EditableLayout)
+            @foreach (var field in Layout)
             {
                 <MudItem xs="12" sm="@(field.IsWide || field.Kind is ArchiveFieldKind.Boolean ? 12 : 6)">
                     <ArchiveFieldEditor Field="field"
                                         Row="Row"
-                                        Disabled="@(!Descriptor.IsWritable(field, IsNewRecord))"
+                                        Disabled="@(ReadOnly || !Descriptor.IsWritable(field, IsNewRecord))"
                                         HelperText="@HintFor(field)"
                                         OnChanged="ClearError" />
                 </MudItem>
@@ -43,17 +44,27 @@
     </DialogContent>
 
     <DialogActions>
-        <MudButton OnClick="Cancel" Disabled="_saving">@L["Action.Cancel"]</MudButton>
-        <MudButton Color="Color.Primary"
-                   Variant="Variant.Filled"
-                   OnClick="Save"
-                   Disabled="_saving">
-            @if (_saving)
-            {
-                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-            }
-            @L["Action.Save"]
-        </MudButton>
+        @if (ReadOnly)
+        {
+            @* Un solo comando: non c'e' niente da annullare, quindi "Annulla" sarebbe fuori posto. *@
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Cancel">
+                @L["Action.Close"]
+            </MudButton>
+        }
+        else
+        {
+            <MudButton OnClick="Cancel" Disabled="_saving">@L["Action.Cancel"]</MudButton>
+            <MudButton Color="Color.Primary"
+                       Variant="Variant.Filled"
+                       OnClick="Save"
+                       Disabled="_saving">
+                @if (_saving)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                }
+                @L["Action.Save"]
+            </MudButton>
+        }
     </DialogActions>
 </MudDialog>
 
@@ -70,22 +81,47 @@
     [Parameter]
     public bool IsNewRecord { get; set; }
 
+    /// <summary>
+    /// Scheda di sola consultazione: campi tutti bloccati e nessun salvataggio. La usano chi non
+    /// ha permessi di scrittura e le anagrafiche in sola lettura, per vedere i campi che nella
+    /// griglia non entrano.
+    /// </summary>
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
     private bool _saving;
     private string? _error;
+
+    private string Title => (ReadOnly
+        ? L["Msg.ViewRecordTitle"]
+        : IsNewRecord ? L["Msg.NewRecordTitle"] : L["Msg.EditRecordTitle"]).Value;
 
     /// <summary>
     /// Ordine dei campi nel form: prima quelli scrivibili, poi quelli in sola lettura. Chi
     /// compila trova subito cio' su cui puo' agire, e il resto resta consultabile sotto.
+    /// <para>
+    /// In consultazione invece l'ordine e' quello del catalogo e i campi ci sono tutti, chiave
+    /// compresa: non c'e' niente da compilare, e chi apre la scheda lo fa proprio per leggere
+    /// cio' che la griglia non mostra.
+    /// </para>
     /// </summary>
-    private IEnumerable<ArchiveField> EditableLayout => Descriptor.Fields
-        .Where(f => !(f.IsKey && f.Editability is ArchiveFieldEditability.ReadOnly))
-        .OrderByDescending(f => Descriptor.IsWritable(f, IsNewRecord));
+    private IEnumerable<ArchiveField> Layout => ReadOnly
+        ? Descriptor.Fields
+        : Descriptor.Fields
+            .Where(f => !(f.IsKey && f.Editability is ArchiveFieldEditability.ReadOnly))
+            .OrderByDescending(f => Descriptor.IsWritable(f, IsNewRecord));
 
     /// <summary>
     /// Spiega all'operatore perche' un campo e' bloccato, invece di lasciarlo grigio e muto.
+    /// In consultazione sono bloccati tutti, quindi la spiegazione perde senso.
     /// </summary>
     private string? HintFor(ArchiveField field)
     {
+        if (ReadOnly)
+        {
+            return null;
+        }
+
         if (field.Name == nameof(MesDataManager.Domain.Abstractions.IActivatable.IsActive)
             && Descriptor.HasMasterFlag
             && !Row.IsActiveMaster)

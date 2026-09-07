@@ -1,0 +1,104 @@
+@inject IStringLocalizer<Strings> L
+
+@*
+    Barra dei filtri comune alle pagine di produzione: Pressa e Periodo tornano identici in
+    Fermi, Dati di produzione, Lotti in corso, Storico ceste e Storico carico
+    (docs/roadmap.md). Le pagine aggiungono i propri filtri extra in ChildContent, nello stesso
+    rigo.
+*@
+
+<MudPaper Elevation="0" Class="mes-toolbar">
+    <MudSelect T="string"
+               Value="SelectedPress"
+               ValueChanged="@(v => SelectedPressChanged.InvokeAsync(v))"
+               Label="@L["Field.PressId"]"
+               Variant="Variant.Outlined"
+               Margin="Margin.Dense"
+               Class="mes-toolbar__press">
+        @foreach (var item in Presses)
+        {
+            <MudSelectItem T="string" Value="@item.Value">@item.Text</MudSelectItem>
+        }
+    </MudSelect>
+
+    @if (ShowPeriod)
+    {
+        <MudDatePicker Date="DateFrom"
+                       DateChanged="@(d => DateFromChanged.InvokeAsync(d ?? DateFrom))"
+                       Label="@L["Field.PeriodFrom"]"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Editable="true"
+                       Clearable="false"
+                       Class="mes-toolbar__date" />
+
+        <MudDatePicker Date="DateTo"
+                       DateChanged="@(d => DateToChanged.InvokeAsync(d ?? DateTo))"
+                       Label="@L["Field.PeriodTo"]"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Editable="true"
+                       Clearable="false"
+                       Class="mes-toolbar__date" />
+    }
+
+    @ChildContent
+
+    <MudButton StartIcon="@Icons.Material.Outlined.FilterAlt"
+               Variant="Variant.Filled"
+               Color="Color.Primary"
+               Disabled="Loading"
+               OnClick="@(() => OnApply.InvokeAsync())">
+        @L["Action.Apply"]
+    </MudButton>
+
+    @Actions
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<LookupItem> Presses { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public string SelectedPress { get; set; } = "";
+
+    [Parameter]
+    public EventCallback<string> SelectedPressChanged { get; set; }
+
+    /// <summary>
+    /// Le due date del periodo. Non tutte le pagine di produzione ne hanno bisogno: l'elenco dei
+    /// lotti aperti filtra per stato e non per data, perche' un lotto aperto da mesi e' proprio
+    /// l'anomalia da vedere.
+    /// </summary>
+    [Parameter]
+    public bool ShowPeriod { get; set; } = true;
+
+    [Parameter]
+    public DateTime DateFrom { get; set; }
+
+    [Parameter]
+    public EventCallback<DateTime> DateFromChanged { get; set; }
+
+    [Parameter]
+    public DateTime DateTo { get; set; }
+
+    [Parameter]
+    public EventCallback<DateTime> DateToChanged { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback OnApply { get; set; }
+
+    [Parameter]
+    public bool Loading { get; set; }
+
+    /// <summary>Filtri specifici della pagina (Tipo/Causale per i Fermi), nello stesso rigo.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Comandi della pagina, spinti a destra: restano nel rigo ma separati dai filtri, perche'
+    /// non filtrano nulla.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+}

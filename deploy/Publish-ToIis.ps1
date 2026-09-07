@@ -33,7 +33,7 @@
 
 .EXAMPLE
     .\Publish-ToIis.ps1 -SourcePath C:\pubblicazioni\MesDataManager `
-                         -DestinationPath \\itbsintra01\c$\inetpub\MesDataManager
+                         -DestinationPath \\itbsintra01\c$\inetpub\wwwroot\MesDataManager
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(

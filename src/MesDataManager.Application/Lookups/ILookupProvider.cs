@@ -23,4 +23,6 @@ public static class LookupKeys
     public const string Ovens = "ovens";
     public const string Presses = "presses";
     public const string Modules = "modules";
+    public const string DowntimeTypes = "downtimeTypes";
+    public const string DowntimeReasons = "downtimeReasons";
 }

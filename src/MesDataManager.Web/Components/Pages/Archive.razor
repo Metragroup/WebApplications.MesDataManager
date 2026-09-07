@@ -138,28 +138,39 @@ else
                     </TemplateColumn>
                 }
 
-                @if (_descriptor.AllowsUpdate || _descriptor.AllowsDelete)
-                {
-                    <TemplateColumn T="ArchiveRow" Sortable="false" CellClass="mes-cell--actions">
-                        <CellTemplate>
-                            @if (_descriptor.AllowsUpdate && _permissions.CanUpdate)
-                            {
-                                <MudIconButton Icon="@Icons.Material.Outlined.Edit"
-                                               Size="Size.Small"
-                                               aria-label="@L["Action.EditRecord"]"
-                                               OnClick="@(() => EditAsync(context.Item))" />
-                            }
-                            @if (_descriptor.AllowsDelete && _permissions.CanDelete)
-                            {
-                                <MudIconButton Icon="@Icons.Material.Outlined.Delete"
-                                               Size="Size.Small"
-                                               Color="Color.Error"
-                                               aria-label="@L["Action.DeleteRecord"]"
-                                               OnClick="@(() => DeleteAsync(context.Item))" />
-                            }
-                        </CellTemplate>
-                    </TemplateColumn>
-                }
+                @*
+                    La colonna dei comandi c'e' sempre: la griglia mostra i campi principali
+                    (GridFields), la scheda tutti. Chi non puo' modificare — perche' non ne ha il
+                    permesso o perche' l'anagrafica e' in sola lettura — deve comunque poterla
+                    aprire, altrimenti i campi fuori dalla griglia non sarebbero visibili da
+                    nessuna parte.
+                *@
+                <TemplateColumn T="ArchiveRow" Sortable="false" CellClass="mes-cell--actions">
+                    <CellTemplate>
+                        @if (_descriptor.AllowsUpdate && _permissions.CanUpdate)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Outlined.Edit"
+                                           Size="Size.Small"
+                                           aria-label="@L["Action.EditRecord"]"
+                                           OnClick="@(() => EditAsync(context.Item))" />
+                        }
+                        else
+                        {
+                            <MudIconButton Icon="@Icons.Material.Outlined.Visibility"
+                                           Size="Size.Small"
+                                           aria-label="@L["Action.ViewRecord"]"
+                                           OnClick="@(() => ViewAsync(context.Item))" />
+                        }
+                        @if (_descriptor.AllowsDelete && _permissions.CanDelete)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Outlined.Delete"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           aria-label="@L["Action.DeleteRecord"]"
+                                           OnClick="@(() => DeleteAsync(context.Item))" />
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
             </Columns>
 
             <PagerContent>
@@ -269,7 +280,15 @@ else
         // Si modifica una copia: se l'operatore annulla, la griglia resta com'era.
         ShowEditorAsync(row.Clone(), isNewRecord: false);
 
-    private async Task ShowEditorAsync(ArchiveRow row, bool isNewRecord)
+    /// <summary>
+    /// Apre la scheda in sola consultazione, con tutti i campi dell'anagrafica e non solo quelli
+    /// della griglia. Anche qui si passa una copia: i campi sono bloccati, ma la riga della
+    /// griglia non deve dipendere da quel presupposto.
+    /// </summary>
+    private Task ViewAsync(ArchiveRow row) =>
+        ShowEditorAsync(row.Clone(), isNewRecord: false, readOnly: true);
+
+    private async Task ShowEditorAsync(ArchiveRow row, bool isNewRecord, bool readOnly = false)
     {
         if (_descriptor is null)
         {
@@ -281,6 +300,7 @@ else
             { d => d.Descriptor, _descriptor },
             { d => d.Row, row },
             { d => d.IsNewRecord, isNewRecord },
+            { d => d.ReadOnly, readOnly },
         };
 
         var dialog = await Dialogs.ShowAsync<ArchiveEditDialog>(string.Empty, parameters);

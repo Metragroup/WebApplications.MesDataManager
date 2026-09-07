@@ -60,10 +60,18 @@
             <MudNavGroup Title="@L["Nav.Production"]"
                          Expanded="_productionExpanded"
                          ExpandedChanged="@(value => _productionExpanded = value)">
-                @foreach (var labelKey in VisibleProduction())
+                @foreach (var (labelKey, route) in VisibleProduction())
                 {
-                    @* La voce c'e' ma la pagina no: disabilitata, cosi' nessuno finisce su un 404. *@
-                    <MudNavLink Disabled="true" title="@L["Msg.PageNotAvailable"]">@L[labelKey]</MudNavLink>
+                    @if (route is not null)
+                    {
+                        @* Indirizzo relativo alla base: vedi la nota sulle anagrafiche sopra. *@
+                        <MudNavLink Href="@route" Match="NavLinkMatch.All">@L[labelKey]</MudNavLink>
+                    }
+                    else
+                    {
+                        @* La voce c'e' ma la pagina no: disabilitata, cosi' nessuno finisce su un 404. *@
+                        <MudNavLink Disabled="true" title="@L["Msg.PageNotAvailable"]">@L[labelKey]</MudNavLink>
+                    }
                 }
             </MudNavGroup>
         }
@@ -84,15 +92,16 @@
 
     /// <summary>
     /// Voci della sezione di produzione, nell'ordine in cui si lavora: prima i fermi, poi la
-    /// produzione del turno, infine gli storici. Diventeranno pagine vere.
+    /// produzione del turno, infine gli storici. Le voci senza indirizzo sono pagine non ancora
+    /// scritte e restano disabilitate.
     /// </summary>
-    private static readonly string[] ProductionEntries =
+    private static readonly (string LabelKey, string? Route)[] ProductionEntries =
     [
-        "Nav.ProductionDowntime",
-        "Nav.ProductionData",
-        "Nav.ProductionBatches",
-        "Nav.ProductionBasketHistory",
-        "Nav.ProductionLoadHistory",
+        ("Nav.ProductionDowntime", "produzione/fermi"),
+        ("Nav.ProductionData", "produzione/dati"),
+        ("Nav.ProductionBatches", "produzione/lotti"),
+        ("Nav.ProductionBasketHistory", null),
+        ("Nav.ProductionLoadHistory", null),
     ];
 
     private string? _filter;
@@ -133,7 +142,8 @@
             .OrderBy(d => L[d.NameKey].Value, StringComparer.CurrentCulture)
     ];
 
-    private List<string> VisibleProduction() => [.. ProductionEntries.Where(Matches)];
+    private List<(string LabelKey, string? Route)> VisibleProduction() =>
+        [.. ProductionEntries.Where(e => Matches(e.LabelKey))];
 
     private bool Matches(string labelKey) =>
         !Filtering || L[labelKey].Value.Contains(_filter!, StringComparison.CurrentCultureIgnoreCase);

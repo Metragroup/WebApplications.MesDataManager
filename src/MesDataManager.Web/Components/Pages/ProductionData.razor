@@ -1,0 +1,559 @@
+@page "/produzione/dati"
+
+@inject IBatchService Batches
+@inject ILookupProvider Lookups
+@inject IStringLocalizer<Strings> L
+@inject NavigationManager Navigation
+@inject ProtectedLocalStorage Storage
+@inject ILogger<ProductionData> Logger
+
+@*
+    Dati di produzione: i lotti gia' chiusi a pressa e a sega, con i filtri della riconciliazione
+    ERP. La casella "dettaglio lunghezza" non aggiunge colonne a un elenco: cambia la sorgente —
+    dalla tabella dei lotti a una funzione tabellare che li scompone per lunghezza barra e turno —
+    e quindi un lotto puo' comparire su piu' righe.
+
+    Il periodo e' obbligatorio e non puo' superare una settimana, come per i macrofermi: senza
+    limite la query attraversa 240 mila lotti.
+*@
+
+<PageTitle>@L["Nav.ProductionData"] &middot; @L["App.Title"]</PageTitle>
+
+<div class="mes-page">
+    <header class="mes-page__head">
+        <h1 class="mes-page__title">@L["Nav.ProductionData"]</h1>
+    </header>
+
+    <ProductionFilterToolbar Presses="_presses"
+                             @bind-SelectedPress="_pressId"
+                             @bind-DateFrom="_from"
+                             @bind-DateTo="_to"
+                             OnApply="ApplyAsync"
+                             Loading="_loading">
+        <ChildContent>
+            <MudSelect T="BatchTypeFilter"
+                       @bind-Value="_type"
+                       Label="@L["Field.BatchType"]"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Class="mes-toolbar__type">
+                <MudSelectItem T="BatchTypeFilter" Value="BatchTypeFilter.Any">@L["Msg.BatchTypeAny"]</MudSelectItem>
+                <MudSelectItem T="BatchTypeFilter" Value="BatchTypeFilter.Production">@L["Msg.BatchTypeProduction"]</MudSelectItem>
+                <MudSelectItem T="BatchTypeFilter" Value="BatchTypeFilter.Sampling">@L["Msg.BatchTypeSampling"]</MudSelectItem>
+            </MudSelect>
+
+            <MudSelect T="BatchReconciliationFilter"
+                       @bind-Value="_status"
+                       Label="@L["Field.ReconciliationState"]"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Class="mes-toolbar__reason">
+                <MudSelectItem T="BatchReconciliationFilter" Value="BatchReconciliationFilter.Any">@L["Msg.ReconciliationAny"]</MudSelectItem>
+                <MudSelectItem T="BatchReconciliationFilter" Value="BatchReconciliationFilter.Reconciled">@L["Msg.ReconciliationReconciled"]</MudSelectItem>
+                <MudSelectItem T="BatchReconciliationFilter" Value="BatchReconciliationFilter.ToReconcile">@L["Msg.ReconciliationToReconcile"]</MudSelectItem>
+                <MudSelectItem T="BatchReconciliationFilter" Value="BatchReconciliationFilter.NotReconciled">@L["Msg.ReconciliationNotReconciled"]</MudSelectItem>
+            </MudSelect>
+
+            <MudTextField @bind-Value="_batchId"
+                          Label="@L["Field.BatchId"]"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Clearable="true"
+                          Class="mes-toolbar__text" />
+
+            <MudTextField @bind-Value="_dieId"
+                          Label="@L["Field.DieId"]"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Clearable="true"
+                          Class="mes-toolbar__text" />
+
+            <MudSwitch T="bool"
+                       @bind-Value="_lengthDetail"
+                       Label="@L["Field.LengthDetail"]"
+                       Color="Color.Primary" />
+        </ChildContent>
+    </ProductionFilterToolbar>
+
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+            @_error
+        </MudAlert>
+    }
+
+    @if (!_preferencesLoaded)
+    {
+        @* Finche' non si sa in quale modalita' aprire, la griglia non si disegna: caricarla
+           per poi rifarla mostrerebbe per un istante le colonne dell'altra sorgente, e
+           costerebbe una interrogazione buttata. *@
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+    }
+    else
+    {
+    @* La chiave lega la griglia alla modalita': cambiandola ne nasce una nuova. Senza,
+       MudDataGrid tiene l'elenco delle colonne gia' registrate e accoda in fondo quelle che
+       compaiono dopo, invece di inserirle al posto dichiarato — attivando il dettaglio a
+       griglia viva, le quattro colonne finivano in coda alla riga. Stessa ragione della chiave
+       su Archive.razor. *@
+    <MudDataGrid @ref="_grid"
+                 @key="_lengthDetailShown"
+                 T="ProductionBatchRow"
+                 ServerData="LoadAsync"
+                 Loading="_loading"
+                 Dense="true"
+                 Hover="true"
+                 Striped="true"
+                 Bordered="false"
+                 FixedHeader="true"
+                 Class="mes-grid"
+                 RowClass="mes-row--clickable"
+                 RowClassFunc="@RowClass"
+                 @bind-CurrentPage="_page"
+                 @bind-RowsPerPage="_rowsPerPage"
+                 RowClick="@(args => Open(args.Item))"
+                 Elevation="0">
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Class="pa-6">@L["Msg.NoRecords"]</MudText>
+        </NoRecordsContent>
+
+        <Columns>
+            <PropertyColumn T="ProductionBatchRow" TProperty="string"
+                            Property="r => r.PressId"
+                            Title="@L["Field.PressId"]"
+                            Sortable="false"
+                            CellClass="mes-cell--code" />
+
+            <PropertyColumn T="ProductionBatchRow" TProperty="string"
+                            Property="r => r.BatchId"
+                            Title="@L["Field.BatchId"]"
+                            Sortable="false"
+                            CellClass="mes-cell--code" />
+
+            <PropertyColumn T="ProductionBatchRow" TProperty="string"
+                            Property="@(r => r.DieId ?? "—")"
+                            Title="@L["Field.DieId"]"
+                            Sortable="false"
+                            CellClass="mes-cell--code" />
+
+            @* Le quattro colonne del dettaglio compaiono solo in quella modalita': fuori sono
+               sempre vuote, e una colonna sempre vuota e' peggio di una colonna assente. *@
+            @if (_lengthDetailShown)
+            {
+                <TemplateColumn T="ProductionBatchRow" Title="@L["Field.MmBarSet"]" Sortable="false" CellClass="mes-cell--number">
+                    <CellTemplate>@Number(context.Item.BarLength)</CellTemplate>
+                </TemplateColumn>
+
+                <PropertyColumn T="ProductionBatchRow" TProperty="string"
+                                Property="@(r => r.ShiftId ?? "—")"
+                                Title="@L["Field.ShiftId"]"
+                                Sortable="false" />
+
+                <TemplateColumn T="ProductionBatchRow" Title="@L["Field.ShiftDate"]" Sortable="false">
+                    <CellTemplate>@Day(context.Item.ShiftDate)</CellTemplate>
+                </TemplateColumn>
+
+                <PropertyColumn T="ProductionBatchRow" TProperty="string"
+                                Property="@(r => r.AlloyAndTreatment ?? "—")"
+                                Title="@L["Field.AlloyAndTreatment"]"
+                                Sortable="false" />
+            }
+
+            <TemplateColumn T="ProductionBatchRow" Title="@L["Field.BilletCount"]" Sortable="false" CellClass="mes-cell--number">
+                <CellTemplate>@(context.Item.BilletCount?.ToString() ?? "—")</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="ProductionBatchRow" Title="@L["Field.BarCount"]" Sortable="false" CellClass="mes-cell--number">
+                <CellTemplate>@(context.Item.BarCount?.ToString() ?? "—")</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="ProductionBatchRow" Title="@L["Field.BatchStart"]" Sortable="false">
+                <CellTemplate>@Timestamp(context.Item.StartTs)</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="ProductionBatchRow" Title="@L["Field.ExtrusionTime"]" Sortable="false" CellClass="mes-cell--number">
+                <CellTemplate>@Duration(context.Item.ExtrusionTime)</CellTemplate>
+            </TemplateColumn>
+
+            <PropertyColumn T="ProductionBatchRow" TProperty="string"
+                            Property="@(r => r.ClosingReasonDescription ?? "—")"
+                            Title="@L["Field.BatchClosingReason"]"
+                            Sortable="false"
+                            CellClass="mes-cell--wide" />
+
+            <TemplateColumn T="ProductionBatchRow" Title="@L["Field.KgExtruded"]" Sortable="false" CellClass="mes-cell--number">
+                <CellTemplate>@Number(context.Item.KgExtruded)</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="ProductionBatchRow" Title="@L["Field.KgCut"]" Sortable="false" CellClass="mes-cell--number">
+                <CellTemplate>@Number(context.Item.KgCut)</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="ProductionBatchRow" Title="@L["Field.Efficiency"]" Sortable="false" CellClass="mes-cell--number">
+                <CellTemplate>@Percent(context.Item.Efficiency)</CellTemplate>
+            </TemplateColumn>
+
+            @* I due stati della riconciliazione si leggono a colpo d'occhio scorrendo la
+               colonna: una casella spuntata si distingue da lontano, "Si'"/"No" no. Sono in
+               sola lettura — qui si consulta soltanto. *@
+            <TemplateColumn T="ProductionBatchRow" Title="@L["Field.IsErpMarked"]" Sortable="false">
+                <CellTemplate>@Check(context.Item.IsErpMarked, L["Field.IsErpMarked"])</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="ProductionBatchRow" Title="@L["Field.IsErpImported"]" Sortable="false">
+                <CellTemplate>@Check(context.Item.IsErpImported, L["Field.IsErpImported"])</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="ProductionBatchRow" Title="@L["Field.DiagnosticsStatus"]" Sortable="false">
+                <CellTemplate>
+                    @if (string.IsNullOrEmpty(context.Item.DiagnosticsStatus))
+                    {
+                        <span>—</span>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                 Color="@DiagnosticsColor(context.Item.DiagnosticsStatus)">
+                            @context.Item.DiagnosticsStatus
+                        </MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="ProductionBatchRow" PageSizeOptions="new[] { 25, 50, 100 }" />
+        </PagerContent>
+    </MudDataGrid>
+    }
+</div>
+
+@code {
+    /// <summary>Valore della voce "TUTTE": nessun filtro sulla pressa.</summary>
+    private const string Any = "";
+
+    private MudDataGrid<ProductionBatchRow>? _grid;
+
+    private IReadOnlyList<LookupItem> _presses = [];
+
+    private string _pressId = Any;
+    private BatchTypeFilter _type = BatchTypeFilter.Any;
+
+    /// <summary>Come nel vecchio applicativo: si apre sui lotti che l'ERP non ha ancora preso.</summary>
+    private BatchReconciliationFilter _status = BatchReconciliationFilter.NotReconciled;
+
+    private string? _batchId;
+    private string? _dieId;
+    private bool _lengthDetail;
+
+    /// <summary>
+    /// Modalita' con cui e' stata caricata la pagina attualmente a schermo. Le colonne seguono
+    /// questa e non la casella: cambiando la spunta senza premere "Applica", le colonne non
+    /// devono cambiare sotto righe che appartengono all'altra sorgente.
+    /// </summary>
+    private bool _lengthDetailShown;
+
+    // Ultimi sette giorni, estremi compresi: e' il massimo interrogabile, quindi la pagina si
+    // apre gia' sulla finestra piu' ampia consentita.
+    private DateTime _from = DateTime.Today.AddDays(-6);
+    private DateTime _to = DateTime.Today;
+
+    private int _page;
+    private int _rowsPerPage = 25;
+
+    // I filtri viaggiano anche nell'indirizzo: e' cosi' che la scheda del lotto sa dove
+    // riportare, e che tornando indietro l'elenco si ritrova come lo si era lasciato — stessa
+    // pagina compresa. In piu' un elenco filtrato diventa un collegamento che si puo' passare
+    // a un collega.
+    [SupplyParameterFromQuery(Name = "pressa")]
+    public string? PressQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "dal")]
+    public string? FromQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "al")]
+    public string? ToQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "tipo")]
+    public string? TypeQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "stato")]
+    public string? StatusQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "lotto")]
+    public string? BatchQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "matrice")]
+    public string? DieQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "dettaglio")]
+    public bool? LengthDetailQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "pagina")]
+    public int? PageQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "righe")]
+    public int? RowsPerPageQuery { get; set; }
+
+    private bool _loading;
+    private string? _error;
+
+    /// <summary>Chiave con cui la scelta del dettaglio resta memorizzata nel browser.</summary>
+    private const string LengthDetailPreference = "produzione.dettaglioLunghezza";
+
+    /// <summary>
+    /// La preferenza si legge dal browser, quindi solo a circuito stabilito: finche' non si sa,
+    /// la griglia non si disegna.
+    /// </summary>
+    private bool _preferencesLoaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        RestoreFilters();
+
+        // Se la modalita' arriva dall'indirizzo — e' il caso del ritorno da una scheda — decide
+        // quella, e non c'e' niente da aspettare.
+        _preferencesLoaded = LengthDetailQuery is not null;
+
+        await LoadFiltersAsync();
+    }
+
+    /// <summary>
+    /// Riprende la scelta del dettaglio lunghezza fatta l'ultima volta. Se l'archivio del browser
+    /// non e' leggibile — succede in una finestra anonima, o dopo un cambio delle chiavi di
+    /// protezione — si riparte dal valore predefinito: e' una comodita', non un dato.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _preferencesLoaded)
+        {
+            return;
+        }
+
+        try
+        {
+            var saved = await Storage.GetAsync<bool>(LengthDetailPreference);
+            if (saved.Success)
+            {
+                _lengthDetail = saved.Value;
+                _lengthDetailShown = saved.Value;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Preferenza del dettaglio lunghezza non leggibile.");
+        }
+        finally
+        {
+            _preferencesLoaded = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveLengthDetailAsync()
+    {
+        try
+        {
+            await Storage.SetAsync(LengthDetailPreference, _lengthDetail);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Preferenza del dettaglio lunghezza non salvata.");
+        }
+    }
+
+
+    /// <summary>
+    /// Riprende i criteri dall'indirizzo, se ci sono. Si fa una volta sola, all'apertura: dopo,
+    /// la verita' e' nei campi della pagina, e rileggere l'indirizzo a ogni parametro
+    /// sovrascriverebbe quello che l'operatore ha appena scelto.
+    /// </summary>
+    private void RestoreFilters()
+    {
+        _pressId = PressQuery ?? Any;
+        _batchId = BatchQuery;
+        _dieId = DieQuery;
+        _lengthDetail = LengthDetailQuery ?? false;
+
+        // Tornando qui da una scheda, la modalita' e' gia' nota: le colonne devono essere
+        // quelle giuste dal primo disegno, senza passare da quelle dell'altra sorgente.
+        _lengthDetailShown = _lengthDetail;
+
+        if (Date(FromQuery) is { } from)
+        {
+            _from = from;
+        }
+
+        if (Date(ToQuery) is { } to)
+        {
+            _to = to;
+        }
+
+        if (Enum.TryParse<BatchTypeFilter>(TypeQuery, out var type))
+        {
+            _type = type;
+        }
+
+        if (Enum.TryParse<BatchReconciliationFilter>(StatusQuery, out var status))
+        {
+            _status = status;
+        }
+
+        // Nell'indirizzo la pagina si conta da uno, nella griglia da zero.
+        _page = PageQuery is { } page && page > 0 ? page - 1 : 0;
+        _rowsPerPage = RowsPerPageQuery is { } rows && rows > 0 ? rows : 25;
+    }
+
+    private static DateTime? Date(string? value) =>
+        DateTime.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+            ? parsed
+            : null;
+
+    private async Task LoadFiltersAsync()
+    {
+        if (_presses.Count > 0)
+        {
+            return;
+        }
+
+        var presses = await Lookups.GetAsync(LookupKeys.Presses);
+        _presses = [new LookupItem(Any, L["Msg.AllPresses"]), .. presses];
+    }
+
+    private async Task<GridData<ProductionBatchRow>> LoadAsync(
+        GridState<ProductionBatchRow> state,
+        CancellationToken cancellationToken)
+    {
+        await LoadFiltersAsync();
+
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var page = await Batches.GetProductionPageAsync(
+                new ProductionBatchQuery(
+                    PressId: _pressId == Any ? null : _pressId,
+                    From: _from,
+                    To: _to,
+                    Type: _type,
+                    Status: _status,
+                    BatchId: _batchId,
+                    DieId: _dieId,
+                    LengthDetail: _lengthDetail,
+                    PageNumber: state.Page + 1,
+                    PageSize: state.PageSize),
+                cancellationToken);
+
+            return new GridData<ProductionBatchRow> { Items = page.Rows, TotalItems = page.TotalCount };
+        }
+        catch (ProductionException ex)
+        {
+            // Il caso tipico e' il periodo oltre la settimana: il messaggio resta sopra la
+            // griglia, cosi' l'operatore vede la regola e corregge il filtro.
+            _error = ex.Localize(L);
+            return new GridData<ProductionBatchRow> { Items = [], TotalItems = 0 };
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Lettura dei dati di produzione non riuscita.");
+            _error = L["Error.UnexpectedError"];
+            return new GridData<ProductionBatchRow> { Items = [], TotalItems = 0 };
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        // Cambiare modalita' significa cambiare sorgente: la griglia viene ricreata dalla
+        // chiave e si ricarica da sola, quindi qui non si ricarica quella vecchia. Si riparte
+        // dalla prima pagina, perche' le righe non sono piu' le stesse.
+        if (_lengthDetailShown != _lengthDetail)
+        {
+            _lengthDetailShown = _lengthDetail;
+            _page = 0;
+            await SaveLengthDetailAsync();
+            return;
+        }
+
+        if (_grid is { } grid)
+        {
+            await grid.ReloadServerData();
+        }
+    }
+
+    /// <summary>
+    /// Apre la scheda del lotto portandosi dietro l'indirizzo di ritorno: cosi' il comando
+    /// "indietro" della scheda riporta a questo elenco, con questi filtri e su questa pagina.
+    /// </summary>
+    private void Open(ProductionBatchRow row)
+    {
+        var back = Navigation.GetUriWithQueryParameters("produzione/dati", new Dictionary<string, object?>
+        {
+            ["pressa"] = _pressId == Any ? null : _pressId,
+            ["dal"] = _from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["al"] = _to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["tipo"] = _type == BatchTypeFilter.Any ? null : _type.ToString(),
+            ["stato"] = _status.ToString(),
+            ["lotto"] = string.IsNullOrWhiteSpace(_batchId) ? null : _batchId,
+            ["matrice"] = string.IsNullOrWhiteSpace(_dieId) ? null : _dieId,
+            ["dettaglio"] = _lengthDetail ? true : null,
+            ["pagina"] = _page > 0 ? _page + 1 : null,
+            ["righe"] = _rowsPerPage == 25 ? null : _rowsPerPage,
+        });
+
+        Navigation.NavigateTo($"produzione/lotti/{row.BatchId}?ritorno={Uri.EscapeDataString(back)}");
+    }
+
+    /// <summary>
+    /// Il lotto bloccato resta in secondo piano e la diagnostica in errore si vede da lontano:
+    /// sono le stesse tre condizioni con cui il vecchio applicativo colorava le righe.
+    /// </summary>
+    private static string RowClass(ProductionBatchRow row, int _) => row switch
+    {
+        { IsLock: true } => "mes-row--locked",
+        { DiagnosticsStatus: "ERR" } => "mes-row--error",
+        _ => string.Empty,
+    };
+
+    private static string Timestamp(DateTime? value) =>
+        value?.ToString("g", CultureInfo.CurrentCulture) ?? "—";
+
+    private static string Day(DateTime? value) =>
+        value?.ToString("d", CultureInfo.CurrentCulture) ?? "—";
+
+    private static string Number(decimal? value) =>
+        value?.ToString("N2", CultureInfo.CurrentCulture) ?? "—";
+
+    private static string Percent(decimal? value) =>
+        value?.ToString("P1", CultureInfo.CurrentCulture) ?? "—";
+
+    /// <summary>
+    /// Casella di spunta in sola lettura. L'etichetta accessibile ripete il nome della colonna,
+    /// altrimenti chi usa un lettore di schermo sente una fila di caselle senza sapere di cosa.
+    /// </summary>
+    private static RenderFragment Check(bool value, string label) =>
+        @<MudIcon Size="Size.Small"
+                  Color="@(value ? Color.Primary : Color.Default)"
+                  Icon="@(value ? Icons.Material.Outlined.CheckBox : Icons.Material.Outlined.CheckBoxOutlineBlank)"
+                  aria-label="@label"
+                  role="img" />;
+
+
+    private static string Duration(TimeSpan? value) => value is not { } span
+        ? "—"
+        : span.Days > 0
+            ? span.ToString(@"d\.hh\:mm\:ss", CultureInfo.InvariantCulture)
+            : span.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
+
+    private static Color DiagnosticsColor(string? status) => status switch
+    {
+        "ERR" => Color.Error,
+        "ATT" => Color.Warning,
+        "OK" => Color.Success,
+        _ => Color.Default,
+    };
+}

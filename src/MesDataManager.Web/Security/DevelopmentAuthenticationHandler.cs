@@ -20,21 +20,25 @@ public sealed class DevelopmentAuthenticationOptions : AuthenticationSchemeOptio
     public string DisplayName { get; set; } = "Utente di sviluppo";
 
     /// <summary>
-    /// Ruoli attribuiti all'utente finto. Ridurli e' il modo piu' rapido per provare che i
-    /// permessi funzionino davvero:
+    /// Ruoli attribuiti all'utente finto. Cambiarli in <c>appsettings.Development.json</c> e' il
+    /// modo piu' rapido per provare che i permessi funzionino davvero:
     /// <list type="bullet">
-    /// <item>solo <c>Reader</c>: nessun pulsante di scrittura, sola consultazione;</item>
+    /// <item>solo <c>Reader</c>: nessun pulsante di scrittura, resta la scheda in
+    /// consultazione;</item>
     /// <item>array vuoto: accesso negato, la griglia non si apre nemmeno in lettura;</item>
     /// <item>togliere <c>Production.Editor</c>: nessuna differenza, le pagine di produzione
     /// non esistono ancora.</item>
     /// </list>
+    /// <para>
+    /// L'elenco parte vuoto e non con i tre ruoli di scrittura, per quanto sarebbe stato piu'
+    /// comodo: <c>Bind</c> fonde gli array per indice, quindi un predefinito non vuoto
+    /// lascerebbe in coda i ruoli che si stavano togliendo. Con
+    /// <c>"Roles": [ "Reader" ]</c> sopra un predefinito di tre voci si ottengono tre ruoli, di
+    /// cui due invisibili in configurazione — e la prova dei permessi darebbe l'esito
+    /// sbagliato senza dire perche'.
+    /// </para>
     /// </summary>
-    public string[] Roles { get; set; } =
-    [
-        AppRoles.Administrator,
-        AppRoles.ArchiveEditor,
-        AppRoles.ProductionEditor,
-    ];
+    public string[] Roles { get; set; } = [];
 }
 
 /// <summary>

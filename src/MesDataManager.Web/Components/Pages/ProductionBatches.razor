@@ -1,0 +1,286 @@
+@page "/produzione/lotti"
+
+@inject IBatchService Batches
+@inject ILookupProvider Lookups
+@inject IUserContext User
+@inject IStringLocalizer<Strings> L
+@inject NavigationManager Navigation
+@inject ILogger<ProductionBatches> Logger
+
+@*
+    Lotti in corso: i lotti con almeno una delle due chiusure ancora da fare. Non c'e' filtro di
+    periodo, come nel vecchio applicativo — un lotto aperto da mesi e' l'anomalia da vedere — ma la
+    paginazione e' vera, al posto delle dieci righe cablate di prima.
+*@
+
+<PageTitle>@L["Nav.ProductionBatches"] &middot; @L["App.Title"]</PageTitle>
+
+<div class="mes-page">
+    <header class="mes-page__head">
+        <h1 class="mes-page__title">@L["Nav.ProductionBatches"]</h1>
+    </header>
+
+    <ProductionFilterToolbar Presses="_presses"
+                             @bind-SelectedPress="_pressId"
+                             ShowPeriod="false"
+                             OnApply="ApplyAsync"
+                             Loading="_loading">
+        <MudSelect T="BatchCloseState"
+                   @bind-Value="_closeState"
+                   Label="@L["Field.BatchCloseState"]"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Class="mes-toolbar__type">
+            <MudSelectItem T="BatchCloseState" Value="BatchCloseState.Any">@L["Msg.BatchStateAny"]</MudSelectItem>
+            <MudSelectItem T="BatchCloseState" Value="BatchCloseState.Running">@L["Msg.BatchStateRunning"]</MudSelectItem>
+            <MudSelectItem T="BatchCloseState" Value="BatchCloseState.PartiallyClosed">@L["Msg.BatchStatePartiallyClosed"]</MudSelectItem>
+        </MudSelect>
+    </ProductionFilterToolbar>
+
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+            @_error
+        </MudAlert>
+    }
+
+    <MudDataGrid @ref="_grid"
+                 T="BatchRow"
+                 ServerData="LoadAsync"
+                 Loading="_loading"
+                 Dense="true"
+                 Hover="true"
+                 Striped="true"
+                 Bordered="false"
+                 FixedHeader="true"
+                 Class="mes-grid"
+                 RowClass="mes-row--clickable"
+                 RowClick="@(args => Open(args.Item))"
+                 @bind-CurrentPage="_page"
+                 @bind-RowsPerPage="_rowsPerPage"
+                 Elevation="0">
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Class="pa-6">@L["Msg.NoRecords"]</MudText>
+        </NoRecordsContent>
+
+        <Columns>
+            <PropertyColumn T="BatchRow" TProperty="string"
+                            Property="r => r.PressId"
+                            Title="@L["Field.PressId"]"
+                            Sortable="false"
+                            CellClass="mes-cell--code" />
+
+            <PropertyColumn T="BatchRow" TProperty="string"
+                            Property="r => r.BatchId"
+                            Title="@L["Field.BatchId"]"
+                            Sortable="false"
+                            CellClass="mes-cell--code" />
+
+            <PropertyColumn T="BatchRow" TProperty="string"
+                            Property="@(r => r.DieId ?? "—")"
+                            Title="@L["Field.DieId"]"
+                            Sortable="false"
+                            CellClass="mes-cell--code" />
+
+            <TemplateColumn T="BatchRow" Title="@L["Field.BilletCount"]" Sortable="false" CellClass="mes-cell--number">
+                <CellTemplate>@(context.Item.BilletCount?.ToString() ?? "—")</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="BatchRow" Title="@L["Field.BarCount"]" Sortable="false" CellClass="mes-cell--number">
+                <CellTemplate>@(context.Item.BarCount?.ToString() ?? "—")</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="BatchRow" Title="@L["Field.BatchStart"]" Sortable="false">
+                <CellTemplate>@Timestamp(context.Item.StartTs)</CellTemplate>
+            </TemplateColumn>
+
+            @* Le due chiusure sono due momenti distinti: mostrare il flag senza l'istante non
+               direbbe da quanto il lotto e' fermo in quello stato. *@
+            <TemplateColumn T="BatchRow" Title="@L["Field.PressClosed"]" Sortable="false">
+                <CellTemplate>@ClosedCell(context.Item.IsPressClosed, context.Item.PressClosedTs)</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="BatchRow" Title="@L["Field.SawClosed"]" Sortable="false">
+                <CellTemplate>@ClosedCell(context.Item.IsSawClosed, context.Item.SawClosedTs)</CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="BatchRow" Title="@L["Field.DiagnosticsStatus"]" Sortable="false">
+                <CellTemplate>
+                    @if (string.IsNullOrEmpty(context.Item.DiagnosticsStatus))
+                    {
+                        <span>—</span>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                 Color="@DiagnosticsColor(context.Item.DiagnosticsStatus)">
+                            @context.Item.DiagnosticsStatus
+                        </MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="BatchRow" Sortable="false" CellClass="mes-cell--actions">
+                <CellTemplate>
+                    @if (context.Item.IsLock)
+                    {
+                        @* Il lotto e' bloccato da chi lo sta modificando: qui si consulta
+                           soltanto, ma vederlo spiega perche' altrove risultera' occupato. *@
+                        <MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" Color="Color.Default" />
+                    }
+                    <MudIconButton Icon="@Icons.Material.Outlined.Visibility"
+                                   Size="Size.Small"
+                                   aria-label="@L["Action.ViewRecord"]"
+                                   OnClick="@(() => Open(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="BatchRow" PageSizeOptions="new[] { 25, 50, 100 }" />
+        </PagerContent>
+    </MudDataGrid>
+</div>
+
+@code {
+    /// <summary>Valore della voce "TUTTE": nessun filtro sulla pressa.</summary>
+    private const string Any = "";
+
+    private MudDataGrid<BatchRow>? _grid;
+
+    private IReadOnlyList<LookupItem> _presses = [];
+    private UserPermissions _permissions = UserPermissions.Anonymous;
+
+    private string _pressId = Any;
+    private BatchCloseState _closeState = BatchCloseState.Any;
+
+    private bool _loading;
+    private string? _error;
+
+    private int _page;
+    private int _rowsPerPage = 25;
+
+    // Come per i dati di produzione: i criteri viaggiano nell'indirizzo, cosi' la scheda del
+    // lotto sa dove riportare e il ritorno ritrova l'elenco come lo si era lasciato.
+    [SupplyParameterFromQuery(Name = "pressa")]
+    public string? PressQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "stato")]
+    public string? StateQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "pagina")]
+    public int? PageQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "righe")]
+    public int? RowsPerPageQuery { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _permissions = await User.GetCurrentAsync();
+
+        _pressId = PressQuery ?? Any;
+
+        if (Enum.TryParse<BatchCloseState>(StateQuery, out var state))
+        {
+            _closeState = state;
+        }
+
+        // Nell'indirizzo la pagina si conta da uno, nella griglia da zero.
+        _page = PageQuery is { } page && page > 0 ? page - 1 : 0;
+        _rowsPerPage = RowsPerPageQuery is { } rows && rows > 0 ? rows : 25;
+
+        await LoadFiltersAsync();
+    }
+
+    /// <summary>
+    /// Elenco delle presse con davanti la voce "tutte". La chiamano sia l'inizializzazione sia il
+    /// primo caricamento della griglia: la griglia chiede la sua prima pagina mentre questo
+    /// metodo e' ancora in attesa, e la seconda chiamata non fa nulla.
+    /// </summary>
+    private async Task LoadFiltersAsync()
+    {
+        if (_presses.Count > 0)
+        {
+            return;
+        }
+
+        var presses = await Lookups.GetAsync(LookupKeys.Presses);
+        _presses = [new LookupItem(Any, L["Msg.AllPresses"]), .. presses];
+    }
+
+    private async Task<GridData<BatchRow>> LoadAsync(GridState<BatchRow> state, CancellationToken cancellationToken)
+    {
+        await LoadFiltersAsync();
+
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var page = await Batches.GetPageAsync(
+                new BatchListQuery(
+                    PressId: _pressId == Any ? null : _pressId,
+                    CloseState: _closeState,
+                    PageNumber: state.Page + 1,
+                    PageSize: state.PageSize),
+                cancellationToken);
+
+            return new GridData<BatchRow> { Items = page.Rows, TotalItems = page.TotalCount };
+        }
+        catch (ProductionException ex)
+        {
+            _error = ex.Localize(L);
+            return new GridData<BatchRow> { Items = [], TotalItems = 0 };
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Lettura dei lotti non riuscita.");
+            _error = L["Error.UnexpectedError"];
+            return new GridData<BatchRow> { Items = [], TotalItems = 0 };
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        if (_grid is { } grid)
+        {
+            await grid.ReloadServerData();
+        }
+    }
+
+    /// <summary>
+    /// Apre la scheda del lotto portandosi dietro l'indirizzo di ritorno: il comando "indietro"
+    /// della scheda riporta a questo elenco, con questi filtri e su questa pagina.
+    /// </summary>
+    private void Open(BatchRow row)
+    {
+        var back = Navigation.GetUriWithQueryParameters("produzione/lotti", new Dictionary<string, object?>
+        {
+            ["pressa"] = _pressId == Any ? null : _pressId,
+            ["stato"] = _closeState == BatchCloseState.Any ? null : _closeState.ToString(),
+            ["pagina"] = _page > 0 ? _page + 1 : null,
+            ["righe"] = _rowsPerPage == 25 ? null : _rowsPerPage,
+        });
+
+        Navigation.NavigateTo($"produzione/lotti/{row.BatchId}?ritorno={Uri.EscapeDataString(back)}");
+    }
+
+    private static string Timestamp(DateTime? value) =>
+        value?.ToString("g", CultureInfo.CurrentCulture) ?? "—";
+
+    private string ClosedCell(bool closed, DateTime? closedAt) => closed
+        ? Timestamp(closedAt)
+        : L["Msg.BatchNotClosed"];
+
+    private static Color DiagnosticsColor(string? status) => status switch
+    {
+        "ERR" => Color.Error,
+        "ATT" => Color.Warning,
+        "OK" => Color.Success,
+        _ => Color.Default,
+    };
+}

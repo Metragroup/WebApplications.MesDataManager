@@ -1,8 +1,10 @@
 using MesDataManager.Application.Archives;
 using MesDataManager.Application.Lookups;
+using MesDataManager.Application.Production;
 using MesDataManager.Infrastructure.Archives;
 using MesDataManager.Infrastructure.Lookups;
 using MesDataManager.Infrastructure.Persistence;
+using MesDataManager.Infrastructure.Production;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -49,6 +51,10 @@ public static class DependencyInjection
         services.AddSingleton<IArchiveCatalog, ArchiveCatalog>();
         services.AddScoped<IArchiveService, ArchiveService>();
         services.AddScoped<ILookupProvider, LookupProvider>();
+        services.AddScoped<IMachineDowntimeService, MachineDowntimeService>();
+        services.AddScoped<IBatchService, BatchService>();
+        services.AddScoped<IShiftCalendar, PressShiftCalendar>();
+        services.AddScoped<IHomeIndicatorService, HomeIndicatorService>();
 
         return services;
     }

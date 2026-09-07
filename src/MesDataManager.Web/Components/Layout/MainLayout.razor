@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject IStringLocalizer<Strings> L
 @inject NavigationManager Navigation
 @inject IUserContext User
@@ -86,9 +87,25 @@
         </MudDrawerHeader>
 
         <MainNavigation />
+
+        @* In fondo al menu, in grigio: su quale server e su quale database si sta lavorando.
+           L'ambiente di prova e quello di esercizio si assomigliano, e saperlo a colpo d'occhio
+           evita di correggere i dati sbagliati. *@
+        <div class="mes-drawer__database">
+            <span>@L["Msg.Server"]: @_database.Server</span>
+            <span>@L["Msg.Database"]: @_database.Database</span>
+        </div>
     </MudDrawer>
 
     <MudMainContent Class="mes-main">
+        @* Fra il clic su una voce di menu e il primo disegno della pagina nuova puo' passare
+           qualche secondo — la pagina interroga il database prima di comparire — e senza un
+           segnale l'applicazione sembra bloccata. La barra copre esattamente quell'intervallo. *@
+        @if (_navigating)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mes-navigating" />
+        }
+
         @Body
     </MudMainContent>
 </MudLayout>
@@ -107,8 +124,37 @@
     private bool _isDarkMode;
     private UserPermissions _user = UserPermissions.Anonymous;
 
-    protected override async Task OnInitializedAsync() =>
+    private bool _navigating;
+    private DatabaseIdentity _database = DatabaseIdentity.Unknown;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        _database = DatabaseIdentity.FromConfiguration(Configuration);
         _user = await User.GetCurrentAsync();
+    }
+
+    /// <summary>
+    /// La navigazione e' cominciata: si accende la barra. Si spegne al primo disegno successivo,
+    /// che avviene quando la pagina nuova ha finito di prepararsi.
+    /// </summary>
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _navigating = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (_navigating)
+        {
+            _navigating = false;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 

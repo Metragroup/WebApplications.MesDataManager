@@ -168,6 +168,25 @@ verificando che ogni chiave sia tradotta nelle tre lingue. Prima meta' delle chi
 stringa inline nel servizio e nessun test poteva vederle: `Error.RecordNotFound` e
 `Error.ArchiveNotFound` erano citate dal codice ma assenti da tutti e tre i resx.
 
+**I trigger vanno dichiarati, o la scrittura non parte.** `Press.BatchDowntime` ha un trigger su
+INSERT/UPDATE/DELETE (`TR_Press_BatchDowntime`, che alimenta lo storico in
+`History._BatchDowntime`). Da EF Core 7 il salvataggio rilegge i valori generati dal database con
+una clausola `OUTPUT`, e SQL Server la rifiuta su una tabella con trigger: senza
+`t.HasTrigger("...")` nella mappatura **ogni** inserimento, modifica ed eliminazione falliva con
+`DbUpdateException`, mentre le letture funzionavano regolarmente.
+
+E' un guasto scomodo per due motivi. Il primo: si manifesta solo sulla scrittura, quindi una
+pagina di sola consultazione lo attraversa senza accorgersene. Il secondo: **i test su SQLite non
+lo vedono**, perche' SQLite non ha trigger — il caso e' stato scoperto provando a salvare sul
+database vero. Per questo esiste un test che guarda il **modello** invece del database
+(`Il_trigger_di_BatchDowntime_e_dichiarato_nel_modello`): e' l'unico modo di far fallire in
+locale una regressione su questa riga.
+
+Fra le tabelle usate oggi il trigger e' solo su `BatchDowntime`, ed e' la ragione per cui la
+scrittura sulle anagrafiche non aveva mai dato problemi. Verificato che le tabelle delle prossime
+voci di roadmap (`Batch`, `BatchBillet`, `ProductionPlan`, `LogScaleImport`, i trasferimenti
+modulo) non ne hanno; se un domani ne comparisse uno, il sintomo e' quello descritto qui.
+
 **Un contesto per operazione, non per sessione.** `MesDbContext` si ottiene da
 `IDbContextFactory` e viene smaltito a fine operazione. In Blazor Server un servizio con ambito
 vive quanto il circuito, cioè quanto l'intera sessione dell'utente: un `DbContext` registrato
@@ -259,12 +278,19 @@ estendere a tutta l'applicazione.
 `Production.Editor`.
 
 **Ambiti, non una gerarchia.** `Archive.Editor` gestisce le anagrafiche, `Production.Editor` i
-dati di produzione — pagine che non esistono ancora, quindi la sua parte di scrittura e' futura
-— `Administrator` vale su tutto e `Reader` solo consulta. I ruoli non si sommano in scala:
-l'ambito sta nel nome perche' questa applicazione non e' solo le anagrafiche.
+dati di produzione — dalla pagina dei fermi macchina in avanti — `Administrator` vale su tutto e
+`Reader` solo consulta. I ruoli non si sommano in scala: l'ambito sta nel nome perche' questa
+applicazione non e' solo le anagrafiche.
 
 **La lettura non si divide per ambito, la scrittura si'.** Un `Reader` vede tutto; un editor
 scrive il suo ambito e legge il resto.
+
+**Due permessi di scrittura, non uno.** `UserPermissions` tiene separati `CanInsert`/`CanUpdate`/
+`CanDelete`, che valgono solo per le anagrafiche, e `CanEditProduction`, che vale per i dati di
+produzione. Un solo gruppo di flag sarebbe stato piu' breve e sbagliato: le pagine delle
+anagrafiche leggono quei tre, quindi concedere la scrittura a `Production.Editor` alzandoli
+avrebbe aperto anche le anagrafiche a chi registra i fermi. La separazione degli ambiti vale solo
+se esiste anche nei permessi che ne derivano.
 
 **Serve un ruolo anche solo per leggere.** Chi e' autenticato ma non ha nessuno dei quattro
 ruoli riceve accesso negato. Entra ID lo fermerebbe prima — l'applicazione richiede
@@ -334,6 +360,17 @@ Il nuovo usa una finestra di dialogo generata dai metadati. Motivo: il form dich
 esplicitamente cosa e' scrivibile e cosa no, e puo' **spiegare perche'** un campo e' bloccato —
 cosa che una cella grigia non fa. Su tabelle dove la meta' dei campi arriva dall'ERP, questo
 conta.
+
+Ne consegue una divisione di ruoli fra i due: **la griglia mostra i campi principali
+(`ShowInGrid`), la scheda tutti.** Su `Worker` restano fuori dalla griglia i dieci flag di
+mansione, su `Press` e `Oven` i parametri di monitor e taglierina: metterli in griglia
+renderebbe illeggibile l'elenco, ma da qualche parte devono potersi leggere.
+
+Per questo la scheda si apre **anche in sola consultazione**, con un comando dedicato, e non
+solo quando si ha il permesso di modificare: se dipendesse dai permessi di scrittura, i campi
+fuori dalla griglia sarebbero invisibili a chi ha il ruolo `Reader` — e nelle anagrafiche in
+sola lettura, come `Press`, non ci sarebbe **nessun** modo di vederli. In consultazione la
+scheda mostra anche la chiave generata, che altrove non compare mai.
 
 **I permessi permissivi.** Vedi sezione 8.
 

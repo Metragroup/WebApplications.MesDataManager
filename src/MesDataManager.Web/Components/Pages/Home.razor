@@ -1,14 +1,193 @@
 @page "/"
+
+@inject IHomeIndicatorService Indicators
 @inject IStringLocalizer<Strings> L
+@inject NavigationManager Navigation
+@inject ILogger<Home> Logger
+
+@*
+    Pannello di apertura: sostituisce l'elenco delle voci di menu con una vista di sintesi,
+    divisa in sezioni verticali. I numeri sono cliccabili e portano all'elenco corrispondente,
+    gia' filtrato: chi entra qui deve poter raggiungere una pagina, e un numero senza la strada
+    per arrivare al dettaglio serve a poco.
+*@
 
 <PageTitle>@L["App.Title"]</PageTitle>
 
-@*
-    L'apertura non e' un cruscotto: chi entra qui deve raggiungere una pagina. Mostra quindi
-    lo stesso menu del drawer, dallo stesso componente, perche' su schermo piccolo il drawer
-    parte chiuso e senza questa copia non resterebbe nessuna via d'ingresso.
-*@
+<div class="mes-page mes-dashboard">
+    <header class="mes-page__head">
+        <h1 class="mes-page__title">@L["Msg.Dashboard"]</h1>
+        <MudText Typo="Typo.caption">@L["Msg.ProductionDay"]: @_day.ToString("d", CultureInfo.CurrentCulture)</MudText>
+        <MudSpacer />
+        <MudIconButton Icon="@Icons.Material.Outlined.Refresh"
+                       Size="Size.Small"
+                       aria-label="@L["Action.Refresh"]"
+                       Disabled="_loading"
+                       OnClick="LoadAsync" />
+    </header>
 
-<div class="mes-home">
-    <MainNavigation />
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+            @_error
+        </MudAlert>
+    }
+
+    @if (_loading && _indicators is null)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+    }
+    else if (_indicators is { } data)
+    {
+        <section class="mes-dashboard__section">
+            <h2 class="mes-dashboard__title">@L["Msg.SectionInProgress"]</h2>
+
+            @if (data.Activity.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="mes-dashboard__empty">@L["Msg.NothingInProgress"]</MudText>
+            }
+            else
+            {
+                <div class="mes-dashboard__cards">
+                    @foreach (var press in data.Activity)
+                    {
+                        <MudPaper Elevation="0" Class="mes-tile">
+                            <span class="mes-tile__press">@press.PressId</span>
+
+                            @* Il numero e' un collegamento all'elenco della pressa: cliccarlo
+                               apre esattamente i lotti che ha contato. *@
+                            <a class="mes-tile__value @Zero(press.OpenBatches)" href="@OpenBatchesLink(press.PressId)">
+                                @press.OpenBatches
+                            </a>
+                            <span class="mes-tile__label">@L["Msg.OpenBatches"]</span>
+
+                            <a class="mes-tile__value mes-tile__value--secondary @Zero(press.ToReconcile)" href="@ToReconcileLink(press.PressId)">
+                                @press.ToReconcile
+                            </a>
+                            <span class="mes-tile__label">@L["Msg.ToReconcileBatches"]</span>
+                        </MudPaper>
+                    }
+                </div>
+            }
+        </section>
+
+        @* Macrofermi e microfermi sono due sezioni pari all'attivita' in corso, non
+           sottosezioni di un raggruppamento: si guardano allo stesso modo, una scheda per
+           pressa con tutti i turni della giornata. *@
+        @DowntimeSection(L["Msg.Macrofermi"], data.Macro, data)
+        @DowntimeSection(L["Msg.Microfermi"], data.Micro, data)
+    }
 </div>
+
+@code {
+    private HomeIndicators? _indicators;
+    private DateOnly _day = Today();
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    /// <summary>
+    /// La giornata di produzione non e' quella del calendario: il turno di notte scavalca la
+    /// mezzanotte e appartiene al giorno in cui e' cominciato. Prima delle sei del mattino la
+    /// giornata in corso e' quindi ancora quella di ieri.
+    /// </summary>
+    private static DateOnly Today()
+    {
+        var now = DateTime.Now;
+
+        return DateOnly.FromDateTime(now.Hour < 6 ? now.AddDays(-1) : now);
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            _indicators = await Indicators.GetAsync(_day);
+        }
+        catch (ProductionException ex)
+        {
+            _error = ex.Localize(L);
+        }
+        catch (Exception ex)
+        {
+            // Il pannello e' la prima cosa che si vede entrando: un guasto qui non deve
+            // impedire di raggiungere le pagine, quindi resta un avviso e il menu funziona.
+            Logger.LogError(ex, "Lettura degli indicatori di apertura non riuscita.");
+            _error = L["Error.UnexpectedError"];
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Sezione di un tipo di fermo: una scheda per pressa, con tutti i turni della giornata e i
+    /// due valori che interessano — quanti fermi e quanto sono durati in tutto. Stessa grafica
+    /// delle targhe dell'attivita' in corso, perche' si leggono nello stesso modo.
+    /// </summary>
+    private RenderFragment DowntimeSection(
+        string title,
+        IReadOnlyList<ShiftDowntimeTotals> rows,
+        HomeIndicators data) =>
+        @<section class="mes-dashboard__section">
+            <h2 class="mes-dashboard__title">@title</h2>
+
+            @if (data.DowntimePresses.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="mes-dashboard__empty">@L["Msg.NoDowntimesToday"]</MudText>
+            }
+            else
+            {
+                <div class="mes-dashboard__cards">
+                    @foreach (var pressId in data.DowntimePresses)
+                    {
+                        <MudPaper Elevation="0" Class="mes-tile">
+                            <span class="mes-tile__press">@pressId</span>
+
+                            @foreach (var shift in HomeIndicators.ForPress(rows, pressId))
+                            {
+                                <span class="mes-tile__shift">@shift.ShiftId</span>
+
+                                <span class="mes-tile__value mes-tile__value--secondary @Zero(shift.Count)">@shift.Count</span>
+                                <span class="mes-tile__label">@L["Field.DowntimeCount"]</span>
+
+                                <span class="mes-tile__value mes-tile__value--secondary @Zero(shift.Total)">@Duration(shift.Total)</span>
+                                <span class="mes-tile__label">@L["Field.DowntimeDuration"]</span>
+                            }
+                        </MudPaper>
+                    }
+                </div>
+            }
+        </section>;
+
+    private string OpenBatchesLink(string pressId) =>
+        Navigation.GetUriWithQueryParameters("produzione/lotti", new Dictionary<string, object?>
+        {
+            ["pressa"] = pressId,
+        });
+
+    /// <summary>
+    /// I lotti da riconciliare stanno nella pagina dei dati di produzione, con lo stato
+    /// corrispondente: il periodo lo mette la pagina, che si apre sugli ultimi sette giorni.
+    /// </summary>
+    private string ToReconcileLink(string pressId) =>
+        Navigation.GetUriWithQueryParameters("produzione/dati", new Dictionary<string, object?>
+        {
+            ["pressa"] = pressId,
+            ["stato"] = nameof(BatchReconciliationFilter.ToReconcile),
+        });
+
+    /// <summary>Uno zero si scrive in grigio: e' assenza di dato, non un dato da leggere.</summary>
+    private static string Zero(int value) => value == 0 ? "mes-tile__value--zero" : "";
+
+    private static string Zero(TimeSpan value) => value == TimeSpan.Zero ? "mes-tile__value--zero" : "";
+
+    private static string Duration(TimeSpan value) => value.TotalHours >= 1
+        ? value.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture)
+        : value.ToString(@"m\:ss", CultureInfo.InvariantCulture);
+}

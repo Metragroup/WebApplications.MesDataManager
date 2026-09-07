@@ -46,8 +46,17 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Action.Apply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Action.Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
   <data name="Action.Cancel" xml:space="preserve">
     <value>Cancel</value>
+  </data>
+  <data name="Action.Close" xml:space="preserve">
+    <value>Close</value>
   </data>
   <data name="Action.Delete" xml:space="preserve">
     <value>Delete</value>
@@ -72,6 +81,9 @@
   </data>
   <data name="Action.SignOut" xml:space="preserve">
     <value>Sign out</value>
+  </data>
+  <data name="Action.ViewRecord" xml:space="preserve">
+    <value>Open details</value>
   </data>
   <data name="App.Language" xml:space="preserve">
     <value>Language</value>
@@ -133,6 +145,12 @@
   <data name="Error.ArchiveNotFound" xml:space="preserve">
     <value>The requested archive does not exist.</value>
   </data>
+  <data name="Error.DowntimePeriodOverlap" xml:space="preserve">
+    <value>The period overlaps downtimes already recorded on this press: {0}.</value>
+  </data>
+  <data name="Error.DowntimePeriodTooWide" xml:space="preserve">
+    <value>For type {0} the period cannot exceed {1} days.</value>
+  </data>
   <data name="Error.DuplicateKey" xml:space="preserve">
     <value>A record with this key already exists.</value>
   </data>
@@ -144,6 +162,12 @@
   </data>
   <data name="Error.MaxLengthExceeded" xml:space="preserve">
     <value>Maximum length: {0} characters.</value>
+  </data>
+  <data name="Error.PeriodInvalid" xml:space="preserve">
+    <value>The end date cannot precede the start date.</value>
+  </data>
+  <data name="Error.PeriodTooWide" xml:space="preserve">
+    <value>The period cannot exceed {0} days.</value>
   </data>
   <data name="Error.RecordNotFound" xml:space="preserve">
     <value>Record not found.</value>
@@ -160,6 +184,12 @@
   <data name="Error.ValueOutOfRange" xml:space="preserve">
     <value>Allowed range: {0} to {1}.</value>
   </data>
+  <data name="Field.Alloy" xml:space="preserve">
+    <value>Alloy</value>
+  </data>
+  <data name="Field.AlloyAndTreatment" xml:space="preserve">
+    <value>Alloy/treatment</value>
+  </data>
   <data name="Field.AreaId" xml:space="preserve">
     <value>Area</value>
   </data>
@@ -168,6 +198,30 @@
   </data>
   <data name="Field.BackMillimeterWeight" xml:space="preserve">
     <value>Butt weight per mm</value>
+  </data>
+  <data name="Field.BarCount" xml:space="preserve">
+    <value>Bars</value>
+  </data>
+  <data name="Field.BatchCloseState" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Field.BatchClosingReason" xml:space="preserve">
+    <value>Closing reason</value>
+  </data>
+  <data name="Field.BatchId" xml:space="preserve">
+    <value>Batch</value>
+  </data>
+  <data name="Field.BatchStart" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="Field.BatchStop" xml:space="preserve">
+    <value>End</value>
+  </data>
+  <data name="Field.BatchType" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="Field.BilletCount" xml:space="preserve">
+    <value>Billets</value>
   </data>
   <data name="Field.BilletDeadTime" xml:space="preserve">
     <value>Billet dead time</value>
@@ -178,6 +232,12 @@
   <data name="Field.BilletMeterWeight" xml:space="preserve">
     <value>Billet weight per meter</value>
   </data>
+  <data name="Field.BilletNo" xml:space="preserve">
+    <value>Billet no.</value>
+  </data>
+  <data name="Field.Casting" xml:space="preserve">
+    <value>Casting</value>
+  </data>
   <data name="Field.Code" xml:space="preserve">
     <value>Code</value>
   </data>
@@ -187,11 +247,38 @@
   <data name="Field.Description" xml:space="preserve">
     <value>Description</value>
   </data>
+  <data name="Field.DiagnosticsStatus" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
   <data name="Field.DieCorrectionIssueId" xml:space="preserve">
     <value>ID</value>
   </data>
+  <data name="Field.DieId" xml:space="preserve">
+    <value>Die</value>
+  </data>
+  <data name="Field.DowntimeCount" xml:space="preserve">
+    <value>Downtimes</value>
+  </data>
+  <data name="Field.DowntimeDuration" xml:space="preserve">
+    <value>Duration</value>
+  </data>
+  <data name="Field.DowntimeReason" xml:space="preserve">
+    <value>Reason</value>
+  </data>
+  <data name="Field.DowntimeStart" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="Field.DowntimeStop" xml:space="preserve">
+    <value>End</value>
+  </data>
+  <data name="Field.DowntimeType" xml:space="preserve">
+    <value>Type</value>
+  </data>
   <data name="Field.DurationMinutes" xml:space="preserve">
     <value>Duration (minutes)</value>
+  </data>
+  <data name="Field.Efficiency" xml:space="preserve">
+    <value>Efficiency</value>
   </data>
   <data name="Field.Email" xml:space="preserve">
     <value>Email</value>
@@ -201,6 +288,9 @@
   </data>
   <data name="Field.EmplId" xml:space="preserve">
     <value>Operator</value>
+  </data>
+  <data name="Field.ExtrusionTime" xml:space="preserve">
+    <value>Extrusion time</value>
   </data>
   <data name="Field.FirstName" xml:space="preserve">
     <value>Name</value>
@@ -222,6 +312,12 @@
   </data>
   <data name="Field.IsElt" xml:space="preserve">
     <value>Eletric operator</value>
+  </data>
+  <data name="Field.IsErpImported" xml:space="preserve">
+    <value>Reconciled</value>
+  </data>
+  <data name="Field.IsErpMarked" xml:space="preserve">
+    <value>To reconcile</value>
   </data>
   <data name="Field.IsLineSupervisor" xml:space="preserve">
     <value>Line supervisor</value>
@@ -256,11 +352,41 @@
   <data name="Field.IsRollingOperator" xml:space="preserve">
     <value>Rolling operator</value>
   </data>
+  <data name="Field.IsSampling" xml:space="preserve">
+    <value>Sampling</value>
+  </data>
   <data name="Field.IsSawOperator" xml:space="preserve">
     <value>Saw operator</value>
   </data>
+  <data name="Field.ItemMeterWeight" xml:space="preserve">
+    <value>Meter weight (used)</value>
+  </data>
+  <data name="Field.ItemMeterWeight_MasterData" xml:space="preserve">
+    <value>Meter weight (master data)</value>
+  </data>
+  <data name="Field.ItemMeterWeight_Mes" xml:space="preserve">
+    <value>Meter weight (MES)</value>
+  </data>
+  <data name="Field.ItemMeterWeight_Test" xml:space="preserve">
+    <value>Meter weight (test)</value>
+  </data>
+  <data name="Field.KgCut" xml:space="preserve">
+    <value>Cut kg</value>
+  </data>
+  <data name="Field.KgExtruded" xml:space="preserve">
+    <value>Extruded kg</value>
+  </data>
+  <data name="Field.KgRaw" xml:space="preserve">
+    <value>Gross kg</value>
+  </data>
+  <data name="Field.KgSheared" xml:space="preserve">
+    <value>Sheared kg</value>
+  </data>
   <data name="Field.LastName" xml:space="preserve">
     <value>Last name</value>
+  </data>
+  <data name="Field.LengthDetail" xml:space="preserve">
+    <value>Length detail</value>
   </data>
   <data name="Field.LogWeightTolerancePerc" xml:space="preserve">
     <value>Log weight tolerance %</value>
@@ -285,6 +411,12 @@
   </data>
   <data name="Field.MinRamp" xml:space="preserve">
     <value>Minutes ramp</value>
+  </data>
+  <data name="Field.MmBarSet" xml:space="preserve">
+    <value>Bar length (mm)</value>
+  </data>
+  <data name="Field.MmBilletAct" xml:space="preserve">
+    <value>Billet length (mm)</value>
   </data>
   <data name="Field.ModuleCapacity" xml:space="preserve">
     <value>Capacity</value>
@@ -331,11 +463,20 @@
   <data name="Field.PaintingDowntimeReasonId" xml:space="preserve">
     <value>ID</value>
   </data>
+  <data name="Field.PeriodFrom" xml:space="preserve">
+    <value>Period from</value>
+  </data>
+  <data name="Field.PeriodTo" xml:space="preserve">
+    <value>to</value>
+  </data>
   <data name="Field.Position" xml:space="preserve">
     <value>Position</value>
   </data>
   <data name="Field.PressBatchClosingReasonId" xml:space="preserve">
     <value>ID</value>
+  </data>
+  <data name="Field.PressClosed" xml:space="preserve">
+    <value>Press closed</value>
   </data>
   <data name="Field.PressDowntimeReasonId" xml:space="preserve">
     <value>ID</value>
@@ -367,11 +508,20 @@
   <data name="Field.PressReducedProdReasonId" xml:space="preserve">
     <value>ID</value>
   </data>
+  <data name="Field.ProdId" xml:space="preserve">
+    <value>Order</value>
+  </data>
   <data name="Field.RecipeId" xml:space="preserve">
     <value>ID</value>
   </data>
+  <data name="Field.ReconciliationState" xml:space="preserve">
+    <value>Status</value>
+  </data>
   <data name="Field.Result" xml:space="preserve">
     <value>Result</value>
+  </data>
+  <data name="Field.SawClosed" xml:space="preserve">
+    <value>Saw closed</value>
   </data>
   <data name="Field.SawOprId" xml:space="preserve">
     <value>Saw operation</value>
@@ -385,11 +535,62 @@
   <data name="Field.SawWrkCtrId" xml:space="preserve">
     <value>Saw work center</value>
   </data>
+  <data name="Field.ShiftDate" xml:space="preserve">
+    <value>Shift date</value>
+  </data>
+  <data name="Field.ShiftId" xml:space="preserve">
+    <value>Shift</value>
+  </data>
   <data name="Field.Temperature" xml:space="preserve">
     <value>Temperature</value>
   </data>
   <data name="Field.WorkerId" xml:space="preserve">
     <value>Operator</value>
+  </data>
+  <data name="Msg.AllPresses" xml:space="preserve">
+    <value>ALL</value>
+  </data>
+  <data name="Msg.AllReasons" xml:space="preserve">
+    <value>All reasons</value>
+  </data>
+  <data name="Msg.BatchBillets" xml:space="preserve">
+    <value>Billets</value>
+  </data>
+  <data name="Msg.BatchDowntimes" xml:space="preserve">
+    <value>Batch downtimes</value>
+  </data>
+  <data name="Msg.BatchNotClosed" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Msg.BatchProcessing" xml:space="preserve">
+    <value>Processing</value>
+  </data>
+  <data name="Msg.BatchStateAny" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="Msg.BatchStatePartiallyClosed" xml:space="preserve">
+    <value>Partially closed</value>
+  </data>
+  <data name="Msg.BatchStateRunning" xml:space="preserve">
+    <value>Running</value>
+  </data>
+  <data name="Msg.BatchTypeAny" xml:space="preserve">
+    <value>ALL</value>
+  </data>
+  <data name="Msg.BatchTypeProduction" xml:space="preserve">
+    <value>Production</value>
+  </data>
+  <data name="Msg.BatchTypeSampling" xml:space="preserve">
+    <value>Sampling</value>
+  </data>
+  <data name="Msg.BatchWeights" xml:space="preserve">
+    <value>Weights</value>
+  </data>
+  <data name="Msg.Dashboard" xml:space="preserve">
+    <value>Dashboard</value>
+  </data>
+  <data name="Msg.Database" xml:space="preserve">
+    <value>Database</value>
   </data>
   <data name="Msg.DeleteConfirmText" xml:space="preserve">
     <value>This cannot be undone.</value>
@@ -403,20 +604,56 @@
   <data name="Msg.IsActiveLockedHint" xml:space="preserve">
     <value>The "Active" flag is only available for entries enabled at master level.</value>
   </data>
+  <data name="Msg.Macrofermi" xml:space="preserve">
+    <value>Macro downtimes</value>
+  </data>
   <data name="Msg.MasterLockedHint" xml:space="preserve">
     <value>Only position and active flag can be changed on this table.</value>
+  </data>
+  <data name="Msg.Microfermi" xml:space="preserve">
+    <value>Micro downtimes</value>
   </data>
   <data name="Msg.NewRecordTitle" xml:space="preserve">
     <value>New record</value>
   </data>
+  <data name="Msg.No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Msg.NoDowntimesToday" xml:space="preserve">
+    <value>No downtimes recorded today.</value>
+  </data>
   <data name="Msg.NoRecords" xml:space="preserve">
     <value>No records to show.</value>
+  </data>
+  <data name="Msg.NothingInProgress" xml:space="preserve">
+    <value>No open batches.</value>
+  </data>
+  <data name="Msg.OpenBatches" xml:space="preserve">
+    <value>Batches in progress</value>
+  </data>
+  <data name="Msg.OutOf" xml:space="preserve">
+    <value>of</value>
   </data>
   <data name="Msg.PageNotAvailable" xml:space="preserve">
     <value>This page is not available yet.</value>
   </data>
+  <data name="Msg.ProductionDay" xml:space="preserve">
+    <value>Production day</value>
+  </data>
   <data name="Msg.ReadOnlyArchive" xml:space="preserve">
     <value>Read only</value>
+  </data>
+  <data name="Msg.ReconciliationAny" xml:space="preserve">
+    <value>ALL</value>
+  </data>
+  <data name="Msg.ReconciliationNotReconciled" xml:space="preserve">
+    <value>Not reconciled</value>
+  </data>
+  <data name="Msg.ReconciliationReconciled" xml:space="preserve">
+    <value>Reconciled</value>
+  </data>
+  <data name="Msg.ReconciliationToReconcile" xml:space="preserve">
+    <value>To reconcile</value>
   </data>
   <data name="Msg.RecordDeleted" xml:space="preserve">
     <value>Record deleted.</value>
@@ -427,8 +664,23 @@
   <data name="Msg.SearchPlaceholder" xml:space="preserve">
     <value>Search…</value>
   </data>
+  <data name="Msg.SectionInProgress" xml:space="preserve">
+    <value>In progress</value>
+  </data>
   <data name="Msg.SelectArchivePrompt" xml:space="preserve">
     <value>Pick a master data table from the list to see its contents.</value>
+  </data>
+  <data name="Msg.Server" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="Msg.ToReconcileBatches" xml:space="preserve">
+    <value>To reconcile</value>
+  </data>
+  <data name="Msg.ViewRecordTitle" xml:space="preserve">
+    <value>Record details</value>
+  </data>
+  <data name="Msg.Yes" xml:space="preserve">
+    <value>Yes</value>
   </data>
   <data name="Nav.Archives" xml:space="preserve">
     <value>Archives</value>

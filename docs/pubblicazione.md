@@ -307,6 +307,7 @@ In ordine, perche' ogni passo dimostra una cosa diversa:
 | Provare con e senza `Archive.Editor` | senza: nessun pulsante di scrittura, sola consultazione; con: inserimento, modifica ed eliminazione, tranne su `PressFailureType` | i permessi, che in esercizio non erano mai stati provati |
 | Aprire l'indirizzo con un account non assegnato | Entra ID rifiuta (`AADSTS50105`), l'applicazione non si apre | `Assignment required = Yes` e' effettivo: l'indirizzo diretto non basta |
 | Aprire con un utente in `Reader` | consultazione, nessun pulsante di scrittura | i due livelli sono distinti davvero |
+| Con lo stesso utente, aprire la scheda di una riga di `Worker` | si apre in sola consultazione, con anche i dieci flag di mansione che la griglia non mostra | i campi fuori dalla griglia sono raggiungibili anche senza permessi di scrittura |
 | **Riavviare l'application pool e ricaricare** | si resta collegati | le chiavi sono persistite: e' la prova che cerca il problema piu' insidioso |
 | Guardare `C:\ProgramData\MesDataManager\logs` | file del giorno con le operazioni | permessi di scrittura e tracciabilita' |
 

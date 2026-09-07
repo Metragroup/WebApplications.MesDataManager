@@ -42,6 +42,18 @@ internal static class Users
         CanUpdate = true,
     };
 
+    /// <summary>
+    /// Scrive i dati di produzione e non le anagrafiche: e' <c>Production.Editor</c>. Serve a
+    /// verificare che i due ambiti restino separati.
+    /// </summary>
+    public static readonly UserPermissions ProductionWriter = new()
+    {
+        UserName = "produzione",
+        IsAuthenticated = true,
+        CanRead = true,
+        CanEditProduction = true,
+    };
+
     public static readonly UserPermissions Administrator = new()
     {
         UserName = "amministratore",
@@ -50,6 +62,7 @@ internal static class Users
         CanInsert = true,
         CanUpdate = true,
         CanDelete = true,
+        CanEditProduction = true,
     };
 }
 

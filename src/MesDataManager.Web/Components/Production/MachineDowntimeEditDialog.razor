@@ -1,0 +1,202 @@
+@inject IStringLocalizer<Strings> L
+@inject IMachineDowntimeService Downtimes
+@inject ILookupProvider Lookups
+@inject ISnackbar Snackbar
+@inject ILogger<MachineDowntimeEditDialog> Logger
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@Title</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-4">
+                @_error
+            </MudAlert>
+        }
+
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudSelect T="string" @bind-Value="_pressId"
+                           Label="@L["Field.PressId"]"
+                           Required="true"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense">
+                    @foreach (var item in _presses)
+                    {
+                        <MudSelectItem T="string" Value="@item.Value">@item.Text</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudSelect T="string" @bind-Value="_typeId"
+                           Label="@L["Field.DowntimeType"]"
+                           Required="true"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense">
+                    @foreach (var item in _types)
+                    {
+                        <MudSelectItem T="string" Value="@item.Value">@item.Text</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudDatePicker Date="_startDate" DateChanged="@(d => _startDate = d ?? _startDate)"
+                               Label="@L["Field.DowntimeStart"]"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Editable="true" Clearable="false" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker Time="_startTime" TimeChanged="@(t => _startTime = t ?? _startTime)"
+                               Label="@L["Field.DowntimeStart"]"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Editable="true" Clearable="false" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudDatePicker Date="_stopDate" DateChanged="@(d => _stopDate = d ?? _stopDate)"
+                               Label="@L["Field.DowntimeStop"]"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Editable="true" Clearable="false" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker Time="_stopTime" TimeChanged="@(t => _stopTime = t ?? _stopTime)"
+                               Label="@L["Field.DowntimeStop"]"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Editable="true" Clearable="false" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudSelect T="string" @bind-Value="_reasonId"
+                           Label="@L["Field.DowntimeReason"]"
+                           Required="true"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense">
+                    @foreach (var item in _reasons)
+                    {
+                        <MudSelectItem T="string" Value="@item.Value">@item.Text</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_saving">@L["Action.Cancel"]</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="_saving">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @L["Action.Save"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; } = default!;
+
+    /// <summary>Null per un nuovo fermo.</summary>
+    [Parameter]
+    public MachineDowntimeRow? Existing { get; set; }
+
+    /// <summary>Pressa preselezionata quando si crea un fermo dalla griglia gia' filtrata.</summary>
+    [Parameter]
+    public string? DefaultPressId { get; set; }
+
+    /// <summary>Tipo preselezionato: quello scelto nel filtro della pagina.</summary>
+    [Parameter]
+    public short DefaultDowntimeTypeId { get; set; }
+
+    private IReadOnlyList<LookupItem> _presses = [];
+    private IReadOnlyList<LookupItem> _types = [];
+    private IReadOnlyList<LookupItem> _reasons = [];
+
+    private string _pressId = "";
+    private string _typeId = "";
+    private string _reasonId = "";
+    private DateTime _startDate = DateTime.Today;
+    private TimeSpan _startTime = DateTime.Now.TimeOfDay;
+    private DateTime _stopDate = DateTime.Today;
+    private TimeSpan _stopTime = DateTime.Now.TimeOfDay;
+
+    private bool _saving;
+    private string? _error;
+
+    private bool IsNewRecord => Existing is null;
+
+    private string Title => (IsNewRecord ? L["Action.New"] : L["Action.EditRecord"]).Value;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _presses = await Lookups.GetAsync(LookupKeys.Presses);
+        _types = await Lookups.GetAsync(LookupKeys.DowntimeTypes);
+        _reasons = await Lookups.GetAsync(LookupKeys.DowntimeReasons);
+
+        if (Existing is { } row)
+        {
+            _pressId = row.PressId;
+            _typeId = row.TypeId.ToString();
+            _reasonId = row.ReasonId.ToString();
+            _startDate = row.StartTs.Date;
+            _startTime = row.StartTs.TimeOfDay;
+            _stopDate = row.StopTs.Date;
+            _stopTime = row.StopTs.TimeOfDay;
+        }
+        else
+        {
+            _pressId = DefaultPressId ?? _presses.FirstOrDefault()?.Value ?? "";
+            _typeId = DefaultDowntimeTypeId.ToString();
+            _reasonId = _reasons.FirstOrDefault()?.Value ?? "";
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task Save()
+    {
+        _error = null;
+
+        if (string.IsNullOrEmpty(_pressId) || string.IsNullOrEmpty(_typeId) || string.IsNullOrEmpty(_reasonId))
+        {
+            _error = L["Error.RequiredField"];
+            return;
+        }
+
+        _saving = true;
+
+        try
+        {
+            var model = new MachineDowntimeEditModel(
+                Existing?.Id,
+                _pressId,
+                _startDate.Date + _startTime,
+                _stopDate.Date + _stopTime,
+                short.Parse(_reasonId),
+                short.Parse(_typeId));
+
+            await Downtimes.SaveAsync(model);
+
+            Snackbar.Add(L["Msg.RecordSaved"], Severity.Success);
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        catch (ProductionException ex)
+        {
+            _error = ex.Localize(L);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Salvataggio del fermo macchina non riuscito.");
+            _error = L["Error.UnexpectedError"];
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

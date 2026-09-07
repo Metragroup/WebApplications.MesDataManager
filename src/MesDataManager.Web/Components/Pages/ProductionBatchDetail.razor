@@ -1,0 +1,271 @@
+@page "/produzione/lotti/{BatchId}"
+
+@inject IBatchService Batches
+@inject IMachineDowntimeService Downtimes
+@inject IStringLocalizer<Strings> L
+@inject ILogger<ProductionBatchDetail> Logger
+
+@*
+    Scheda del lotto, in sola consultazione. Nel vecchio applicativo era una finestra modale; qui
+    e' una pagina, cosi' ci si arriva per indirizzo e i venti campi di testata stanno larghi.
+
+    Le sezioni "incestamento", "rettifiche" e "cartellini" della vecchia scheda arriveranno con i
+    moduli a cui appartengono (storico ceste e dati di produzione).
+*@
+
+<PageTitle>@Title &middot; @L["App.Title"]</PageTitle>
+
+<div class="mes-page">
+    <header class="mes-page__head">
+        <MudIconButton Icon="@Icons.Material.Outlined.ArrowBack"
+                       Href="@BackUrl"
+                       aria-label="@L["Action.Back"]" />
+        <h1 class="mes-page__title">@Title</h1>
+
+        @if (_detail is { } head)
+        {
+            @if (!head.IsBatchProcessed)
+            {
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">
+                    @L["Msg.BatchProcessing"]
+                </MudChip>
+            }
+            @if (head.IsLock)
+            {
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                         Icon="@Icons.Material.Outlined.Lock" Color="Color.Default">
+                    @head.LockUsr
+                </MudChip>
+            }
+        }
+    </header>
+
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true">@_error</MudAlert>
+    }
+    else if (_detail is null)
+    {
+        <MudProgressLinear Indeterminate="true" Class="my-4" />
+    }
+    else
+    {
+        <MudPaper Elevation="0" Class="mes-card">
+            <MudGrid Spacing="2">
+                @Field(L["Field.PressId"], _detail.PressId)
+                @Field(L["Field.DieId"], _detail.DieId)
+                @Field(L["Field.BilletCount"], BilletCounts(_detail))
+                @Field(L["Field.BarCount"], _detail.BarCount?.ToString())
+                @Field(L["Field.BatchStart"], Timestamp(_detail.StartTs))
+                @Field(L["Field.BatchStop"], Timestamp(_detail.StopTs))
+                @Field(L["Field.PressClosed"], Closed(_detail.IsPressClosed, _detail.PressClosedTs))
+                @Field(L["Field.SawClosed"], Closed(_detail.IsSawClosed, _detail.SawClosedTs))
+                @Field(L["Field.BatchClosingReason"], _detail.ClosingReasonDescription)
+                @Field(L["Field.IsSampling"], Flag(_detail.IsSampling))
+                @Field(L["Field.IsErpMarked"], Flag(_detail.IsErpMarked))
+                @Field(L["Field.IsErpImported"], Flag(_detail.IsErpImported))
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Elevation="0" Class="mes-card">
+            <MudText Typo="Typo.subtitle2" Class="mes-card__title">@L["Msg.BatchWeights"]</MudText>
+            <MudGrid Spacing="2">
+                @Field(L["Field.KgRaw"], Kg(_detail.KgRaw))
+                @Field(L["Field.KgSheared"], Kg(_detail.KgSheared))
+                @Field(L["Field.KgExtruded"], Kg(_detail.KgExtruded))
+                @Field(L["Field.KgCut"], Kg(_detail.KgCut))
+                @* I quattro pesi/metro convivono di proposito: anagrafica, rilevato dallo SCADA,
+                   di prova, e quello effettivamente usato nei calcoli. *@
+                @Field(L["Field.ItemMeterWeight_MasterData"], Kg(_detail.ItemMeterWeightMasterData))
+                @Field(L["Field.ItemMeterWeight_Mes"], Kg(_detail.ItemMeterWeightMes))
+                @Field(L["Field.ItemMeterWeight_Test"], Kg(_detail.ItemMeterWeightTest))
+                @Field(L["Field.ItemMeterWeight"], Kg(_detail.ItemMeterWeight))
+            </MudGrid>
+        </MudPaper>
+
+        @if (!string.IsNullOrWhiteSpace(_detail.DiagnosticsStatus) || !string.IsNullOrWhiteSpace(_detail.DiagnosticsMsg))
+        {
+            <MudPaper Elevation="0" Class="mes-card">
+                <MudText Typo="Typo.subtitle2" Class="mes-card__title">
+                    @L["Field.DiagnosticsStatus"]
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="@DiagnosticsColor(_detail.DiagnosticsStatus)">
+                        @_detail.DiagnosticsStatus
+                    </MudChip>
+                    @if (_detail.DiagnosticsTs is not null)
+                    {
+                        <MudText Typo="Typo.caption">@Timestamp(_detail.DiagnosticsTs)</MudText>
+                    }
+                </MudText>
+                <pre class="mes-diagnostics">@_detail.DiagnosticsMsg</pre>
+            </MudPaper>
+        }
+
+        <MudText Typo="Typo.subtitle2" Class="mes-section__title">
+            @L["Msg.BatchBillets"] (@_detail.Billets.Count)
+        </MudText>
+
+        <MudTable T="BatchBilletRow" Items="_detail.Billets" Dense="true" Hover="true" Striped="true"
+                  Elevation="0" Class="mes-table">
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Class="pa-4">@L["Msg.NoRecords"]</MudText>
+            </NoRecordsContent>
+            <HeaderContent>
+                <MudTh>@L["Field.BilletNo"]</MudTh>
+                <MudTh>@L["Field.BatchStart"]</MudTh>
+                <MudTh>@L["Field.BatchStop"]</MudTh>
+                <MudTh>@L["Field.ShiftId"]</MudTh>
+                <MudTh>@L["Field.MmBarSet"]</MudTh>
+                <MudTh>@L["Field.MmBilletAct"]</MudTh>
+                <MudTh>@L["Field.KgExtruded"]</MudTh>
+                <MudTh>@L["Field.Casting"]</MudTh>
+                <MudTh>@L["Field.Alloy"]</MudTh>
+                <MudTh>@L["Field.ProdId"]</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="@L["Field.BilletNo"]" Class="mes-cell--number">@context.BilletNo</MudTd>
+                <MudTd DataLabel="@L["Field.BatchStart"]">@Timestamp(context.StartTs)</MudTd>
+                <MudTd DataLabel="@L["Field.BatchStop"]">@Timestamp(context.StopTs)</MudTd>
+                <MudTd DataLabel="@L["Field.ShiftId"]">@Text(context.ShiftId)</MudTd>
+                <MudTd DataLabel="@L["Field.MmBarSet"]" Class="mes-cell--number">@Number(context.MmBarSet)</MudTd>
+                <MudTd DataLabel="@L["Field.MmBilletAct"]" Class="mes-cell--number">@(context.MmBilletAct?.ToString() ?? "—")</MudTd>
+                <MudTd DataLabel="@L["Field.KgExtruded"]" Class="mes-cell--number">@Kg(context.KgExtruded)</MudTd>
+                @* Una billetta puo' essere composta da due tronconi di colate diverse: le due
+                   colonne restano affiancate, con la seconda vuota nel caso normale. *@
+                <MudTd DataLabel="@L["Field.Casting"]" Class="mes-cell--code">@Pair(context.Billet1CastingId, context.Billet2CastingId)</MudTd>
+                <MudTd DataLabel="@L["Field.Alloy"]">@Pair(context.Billet1AlloyId, context.Billet2AlloyId)</MudTd>
+                <MudTd DataLabel="@L["Field.ProdId"]" Class="mes-cell--code">@Text(context.ProdId)</MudTd>
+            </RowTemplate>
+        </MudTable>
+
+        <MudText Typo="Typo.subtitle2" Class="mes-section__title">
+            @L["Msg.BatchDowntimes"] (@_downtimes.Count)
+        </MudText>
+
+        <MudTable T="MachineDowntimeRow" Items="_downtimes" Dense="true" Hover="true" Striped="true"
+                  Elevation="0" Class="mes-table">
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Class="pa-4">@L["Msg.NoRecords"]</MudText>
+            </NoRecordsContent>
+            <HeaderContent>
+                <MudTh>@L["Field.DowntimeStart"]</MudTh>
+                <MudTh>@L["Field.DowntimeStop"]</MudTh>
+                <MudTh>@L["Field.DowntimeDuration"]</MudTh>
+                <MudTh>@L["Field.DowntimeReason"]</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="@L["Field.DowntimeStart"]">@Timestamp(context.StartTs)</MudTd>
+                <MudTd DataLabel="@L["Field.DowntimeStop"]">@Timestamp(context.StopTs)</MudTd>
+                <MudTd DataLabel="@L["Field.DowntimeDuration"]" Class="mes-cell--number">@Duration(context.Duration)</MudTd>
+                <MudTd DataLabel="@L["Field.DowntimeReason"]" Class="mes-cell--wide">@context.ReasonDescription</MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</div>
+
+@code {
+    /// <summary>Elenco da cui si e' arrivati, con i suoi filtri e la sua pagina.</summary>
+    private const string DefaultBackUrl = "produzione/lotti";
+
+    [Parameter]
+    public string? BatchId { get; set; }
+
+    /// <summary>
+    /// Indirizzo di ritorno, passato dall'elenco che ha aperto la scheda. Serve perche' alla
+    /// stessa scheda si arriva da due elenchi diversi — lotti in corso e dati di produzione — e
+    /// tornare indietro deve riportare a quello giusto, con i filtri e la pagina di prima.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "ritorno")]
+    public string? ReturnUrl { get; set; }
+
+    /// <summary>
+    /// Si accettano solo indirizzi interni all'area di produzione: il valore arriva dalla barra
+    /// degli indirizzi, dove chiunque puo' scrivere qualunque cosa.
+    /// </summary>
+    private string BackUrl =>
+        ReturnUrl is { Length: > 0 } url && url.StartsWith("produzione/", StringComparison.Ordinal)
+            ? url
+            : DefaultBackUrl;
+
+    private BatchDetail? _detail;
+    private IReadOnlyList<MachineDowntimeRow> _downtimes = [];
+    private string? _error;
+
+    private string Title => _detail?.BatchId ?? BatchId ?? L["Nav.ProductionBatches"];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (BatchId is null || _detail?.BatchId == BatchId)
+        {
+            return;
+        }
+
+        _detail = null;
+        _downtimes = [];
+        _error = null;
+
+        try
+        {
+            _detail = await Batches.GetDetailAsync(BatchId);
+
+            // I fermi si cercano nella finestra del lotto: senza inizio e fine non c'e' finestra.
+            if (_detail is { StartTs: { } from, StopTs: { } to })
+            {
+                _downtimes = await Downtimes.GetForBatchAsync(_detail.PressId, from, to);
+            }
+        }
+        catch (ProductionException ex)
+        {
+            _error = ex.Localize(L);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Lettura del lotto {Batch} non riuscita.", BatchId);
+            _error = L["Error.UnexpectedError"];
+        }
+    }
+
+    /// <summary>Coppia etichetta/valore della testata, in sola lettura.</summary>
+    private RenderFragment Field(string label, string? value) =>
+        @<MudItem xs="12" sm="6" md="3">
+            <div class="mes-field">
+                <span class="mes-field__label">@label</span>
+                <span class="mes-field__value">@(string.IsNullOrWhiteSpace(value) ? "—" : value)</span>
+            </div>
+        </MudItem>;
+
+    /// <summary>Billette vere sul totale dichiarato dal lotto.</summary>
+    private string BilletCounts(BatchDetail detail) =>
+        $"{detail.RealBilletCount} {L["Msg.OutOf"]} {detail.BilletCount?.ToString() ?? "—"}";
+
+    private string Closed(bool closed, DateTime? closedAt) => closed
+        ? Timestamp(closedAt)
+        : L["Msg.BatchNotClosed"];
+
+    private string Flag(bool value) => value ? L["Msg.Yes"] : L["Msg.No"];
+
+    private static string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static string Pair(string? first, string? second) =>
+        string.IsNullOrWhiteSpace(second) ? Text(first) : $"{Text(first)} / {second}";
+
+    private static string Timestamp(DateTime? value) =>
+        value?.ToString("g", CultureInfo.CurrentCulture) ?? "—";
+
+    private static string Number(decimal? value) =>
+        value?.ToString("N2", CultureInfo.CurrentCulture) ?? "—";
+
+    private static string Kg(decimal? value) =>
+        value?.ToString("N2", CultureInfo.CurrentCulture) ?? "—";
+
+    private static string Duration(TimeSpan value) => value.Days > 0
+        ? value.ToString(@"d\.hh\:mm\:ss", CultureInfo.InvariantCulture)
+        : value.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
+
+    private static Color DiagnosticsColor(string? status) => status switch
+    {
+        "ERR" => Color.Error,
+        "ATT" => Color.Warning,
+        "OK" => Color.Success,
+        _ => Color.Default,
+    };
+}

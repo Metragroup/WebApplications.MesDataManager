@@ -62,6 +62,23 @@ public sealed class LookupProvider(
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false),
 
+            LookupKeys.DowntimeTypes => await context.PressDowntimeTypes
+                .AsNoTracking()
+                .OrderBy(t => t.PressDowntimeTypeId)
+                .Select(t => new LookupItem(t.PressDowntimeTypeId.ToString(), t.Description))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false),
+
+            // Stesso filtro del vecchio RepositoryService.GetPressDowntimeReasons: solo le
+            // causali attive e con il master attivo.
+            LookupKeys.DowntimeReasons => await context.PressDowntimeReasons
+                .AsNoTracking()
+                .Where(r => r.IsActive && r.IsActiveMaster)
+                .OrderBy(r => r.Description)
+                .Select(r => new LookupItem(r.PressDowntimeReasonId.ToString(), r.Description))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false),
+
             _ => [],
         };
 

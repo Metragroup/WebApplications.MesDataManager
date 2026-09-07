@@ -21,6 +21,7 @@ public sealed class UserPermissionsTests
         Assert.False(permissions.CanInsert);
         Assert.False(permissions.CanUpdate);
         Assert.False(permissions.CanDelete);
+        Assert.False(permissions.CanEditProduction);
     }
 
     [Fact]
@@ -102,6 +103,40 @@ public sealed class UserPermissionsTests
         Assert.False(permissions.CanInsert);
         Assert.False(permissions.CanUpdate);
         Assert.False(permissions.CanDelete);
+    }
+
+    [Fact]
+    public void Il_ruolo_della_produzione_scrive_i_dati_di_produzione()
+    {
+        var permissions = UserPermissions.From(Principal(AppRoles.ProductionEditor));
+
+        Assert.True(permissions.CanEditProduction);
+    }
+
+    [Fact]
+    public void Il_redattore_delle_anagrafiche_non_scrive_la_produzione()
+    {
+        // L'altra meta' della separazione degli ambiti: senza questo controllo i tre flag
+        // generici avrebbero aperto anche i fermi macchina a chi gestisce le anagrafiche.
+        var permissions = UserPermissions.From(Principal(AppRoles.ArchiveEditor));
+
+        Assert.False(permissions.CanEditProduction);
+    }
+
+    [Fact]
+    public void Il_lettore_non_scrive_la_produzione()
+    {
+        var permissions = UserPermissions.From(Principal(AppRoles.Reader));
+
+        Assert.False(permissions.CanEditProduction);
+    }
+
+    [Fact]
+    public void L_amministratore_scrive_la_produzione_senza_il_ruolo_di_ambito()
+    {
+        var permissions = UserPermissions.From(Principal(AppRoles.Administrator));
+
+        Assert.True(permissions.CanEditProduction);
     }
 
     [Fact]
