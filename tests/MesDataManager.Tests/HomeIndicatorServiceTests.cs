@@ -114,11 +114,11 @@ public sealed class HomeIndicatorServiceTests : IDisposable
 
         var indicators = await ServiceFor(Users.Reader).GetAsync(Giorno);
 
-        var primo = indicators.Macro.Single(r => r.ShiftId == "T1");
+        var primo = Turno(indicators.Macro, "T1");
         Assert.Equal(2, primo.Count);
         Assert.Equal(TimeSpan.FromMinutes(15), primo.Total);
 
-        var secondo = indicators.Macro.Single(r => r.ShiftId == "T2");
+        var secondo = Turno(indicators.Macro, "T2");
         Assert.Equal(1, secondo.Count);
         Assert.Equal(TimeSpan.FromMinutes(30), secondo.Total);
     }
@@ -132,8 +132,8 @@ public sealed class HomeIndicatorServiceTests : IDisposable
 
         var indicators = await ServiceFor(Users.Reader).GetAsync(Giorno);
 
-        Assert.Equal(["T1", "T2"], indicators.Macro.Select(r => r.ShiftId));
-        Assert.Equal(["T1", "T2"], indicators.Micro.Select(r => r.ShiftId));
+        Assert.Equal(["T1", "T2"], indicators.Macro.Single().Shifts.Select(s => s.ShiftId));
+        Assert.Equal(["T1", "T2"], indicators.Micro.Single().Shifts.Select(s => s.ShiftId));
 
         var secondo = Turno(indicators.Macro, "T2");
         Assert.Equal(0, secondo.Count);
@@ -190,7 +190,7 @@ public sealed class HomeIndicatorServiceTests : IDisposable
 
         var indicators = await ServiceFor(Users.Reader).GetAsync(Giorno);
 
-        Assert.All(indicators.Macro, r => Assert.Equal(0, r.Count));
+        Assert.Equal(0, indicators.Macro.Single().Count);
     }
 
     [Fact]
@@ -202,8 +202,8 @@ public sealed class HomeIndicatorServiceTests : IDisposable
 
         var indicators = await ServiceFor(Users.Reader).GetAsync(Giorno);
 
-        Assert.Equal(["MP5"], indicators.DowntimePresses);
-        Assert.All(indicators.Macro, r => Assert.Equal(0, r.Count));
+        Assert.Equal(["MP5"], indicators.Macro.Select(r => r.PressId));
+        Assert.Equal(0, indicators.Macro.Single().Count);
     }
 
     [Fact]
@@ -251,8 +251,11 @@ public sealed class HomeIndicatorServiceTests : IDisposable
         ShiftWindow[]? shifts = null) =>
         _harness.HomeIndicatorServiceFor(permissions, shifts ?? [PrimoTurno, SecondoTurno]);
 
-    private static ShiftDowntimeTotals Turno(IReadOnlyList<ShiftDowntimeTotals> rows, string shiftId) =>
-        rows.Single(r => r.ShiftId == shiftId);
+    private static PressDowntimeTotals Pressa(IReadOnlyList<PressDowntimeTotals> rows, string pressId) =>
+        rows.Single(r => r.PressId == pressId);
+
+    private static ShiftDowntimeTotals Turno(IReadOnlyList<PressDowntimeTotals> rows, string shiftId) =>
+        rows.Single().Shifts.Single(s => s.ShiftId == shiftId);
 
     private static DateTime At(int hour, int minute) =>
         new(Giorno.Year, Giorno.Month, Giorno.Day, hour, minute, 0);

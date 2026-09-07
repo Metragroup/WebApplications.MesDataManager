@@ -99,7 +99,7 @@ public sealed class HomeIndicatorService(
     /// la giornata, delimitata dalle finestre stesse.
     /// </para>
     /// </summary>
-    private async Task<(IReadOnlyList<ShiftDowntimeTotals> Macro, IReadOnlyList<ShiftDowntimeTotals> Micro)>
+    private async Task<(IReadOnlyList<PressDowntimeTotals> Macro, IReadOnlyList<PressDowntimeTotals> Micro)>
         DowntimesAsync(IReadOnlyList<ShiftWindow> windows, CancellationToken cancellationToken)
     {
         var macrofermo = await ResolveTypeAsync(MachineDowntimePeriodPolicy.Macrofermo, cancellationToken)
@@ -135,23 +135,34 @@ public sealed class HomeIndicatorService(
             .Where(x => x.Shift is not null)
             .ToList();
 
-        // Una riga per ogni turno della giornata, anche senza fermi: la scheda della pressa
-        // mostra tutti i turni e uno zero dice "nessun fermo", mentre un turno assente
+        // Una scheda per pressa: il totale della giornata e, sotto, il dettaglio per turno. I
+        // turni ci sono tutti, anche senza fermi: uno zero dice "nessun fermo", un turno assente
         // lascerebbe il dubbio che il dato manchi.
-        IReadOnlyList<ShiftDowntimeTotals> Totals(byte type) =>
+        IReadOnlyList<PressDowntimeTotals> Totals(byte type) =>
         [
             .. windows
-                .OrderBy(w => w.PressId, StringComparer.Ordinal)
-                .ThenBy(w => w.From)
-                .Select(w =>
+                .GroupBy(w => w.PressId)
+                .OrderBy(g => g.Key, StringComparer.Ordinal)
+                .Select(g =>
                 {
-                    var rows = byShift.Where(x => x.DowntimeType == type && x.Shift == w).ToList();
+                    var perShift = g
+                        .OrderBy(w => w.From)
+                        .Select(w =>
+                        {
+                            var rows = byShift.Where(x => x.DowntimeType == type && x.Shift == w).ToList();
 
-                    return new ShiftDowntimeTotals(
-                        w.PressId,
-                        w.ShiftId,
-                        rows.Count,
-                        rows.Aggregate(TimeSpan.Zero, (sum, x) => sum + x.Duration));
+                            return new ShiftDowntimeTotals(
+                                w.ShiftId,
+                                rows.Count,
+                                rows.Aggregate(TimeSpan.Zero, (sum, x) => sum + x.Duration));
+                        })
+                        .ToList();
+
+                    return new PressDowntimeTotals(
+                        g.Key,
+                        perShift.Sum(s => s.Count),
+                        perShift.Aggregate(TimeSpan.Zero, (sum, s) => sum + s.Total),
+                        perShift);
                 })
         ];
 

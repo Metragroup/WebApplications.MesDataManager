@@ -563,7 +563,7 @@
     <value>Ouvert</value>
   </data>
   <data name="Msg.BatchProcessing" xml:space="preserve">
-    <value>En traitement</value>
+    <value>Extrusion en cours</value>
   </data>
   <data name="Msg.BatchStateAny" xml:space="preserve">
     <value>Tous</value>

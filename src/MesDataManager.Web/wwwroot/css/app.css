@@ -325,18 +325,67 @@ html, body {
     color: var(--mud-palette-text-secondary);
 }
 
+/* La scheda dei fermi si apre: fuori dalla griglia della targa, perche' dentro ci stanno due
+   blocchi (il riepilogo e il dettaglio) e non una sequenza di valori. */
+.mes-tile--expandable {
+    display: block;
+}
+
+.mes-tile__summary {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: baseline;
+    gap: 0.125rem 0.625rem;
+    cursor: pointer;
+}
+
+/* Il triangolo di apertura sta a destra del riepilogo, non davanti al codice pressa: davanti
+   sposterebbe tutto il contenuto e le schede non risulterebbero piu' allineate fra loro. */
+.mes-tile__summary::marker,
+.mes-tile__summary::-webkit-details-marker {
+    content: '';
+}
+
+.mes-tile__summary::after {
+    content: '';
+    grid-column: 1 / -1;
+    justify-self: center;
+    margin-top: 0.5rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-right: 2px solid var(--mud-palette-text-disabled);
+    border-bottom: 2px solid var(--mud-palette-text-disabled);
+    transform: rotate(45deg);
+}
+
+details[open] > .mes-tile__summary::after {
+    transform: rotate(225deg);
+}
+
+/* Il dettaglio per turno: tre colonne — turno, quanti, quanto — cosi' i numeri dei turni si
+   leggono incolonnati e non vanno cercati. */
+.mes-tile__detail {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    margin-top: 0.625rem;
+    padding-top: 0.625rem;
+    border-top: 1px solid var(--mud-palette-divider);
+}
+
+.mes-tile__detail-value {
+    justify-self: end;
+    font-size: 0.9375rem;
+    font-variant-numeric: tabular-nums;
+}
+
 /* Il turno apre il suo blocco dentro la scheda: occupa il rigo intero, come il codice pressa,
    e stacca dai valori del turno precedente. */
 .mes-tile__shift {
-    grid-column: 1 / -1;
-    margin-top: 0.5rem;
-    font-size: 1rem;
+    font-size: 0.9375rem;
     font-weight: 500;
     color: var(--mud-palette-primary);
-}
-
-.mes-tile__shift:first-of-type {
-    margin-top: 0.25rem;
 }
 
 /* ---------------------------------------------------------------- home */

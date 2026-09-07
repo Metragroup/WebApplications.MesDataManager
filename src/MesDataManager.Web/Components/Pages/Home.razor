@@ -74,8 +74,8 @@
         @* Macrofermi e microfermi sono due sezioni pari all'attivita' in corso, non
            sottosezioni di un raggruppamento: si guardano allo stesso modo, una scheda per
            pressa con tutti i turni della giornata. *@
-        @DowntimeSection(L["Msg.Macrofermi"], data.Macro, data)
-        @DowntimeSection(L["Msg.Microfermi"], data.Micro, data)
+        @DowntimeSection(L["Msg.Macrofermi"], data.Macro)
+        @DowntimeSection(L["Msg.Microfermi"], data.Micro)
     }
 </div>
 
@@ -126,40 +126,51 @@
     }
 
     /// <summary>
-    /// Sezione di un tipo di fermo: una scheda per pressa, con tutti i turni della giornata e i
-    /// due valori che interessano — quanti fermi e quanto sono durati in tutto. Stessa grafica
-    /// delle targhe dell'attivita' in corso, perche' si leggono nello stesso modo.
+    /// Sezione di un tipo di fermo: una scheda per pressa con il totale della giornata, e il
+    /// dettaglio per turno che si apre solo se serve. Il totale e' la lettura sintetica che si
+    /// vuole a colpo d'occhio; da dove viene lo si chiede aprendo la scheda.
+    /// <para>
+    /// L'apertura e' un <c>details</c> del browser e non un componente: nessun JavaScript,
+    /// funziona da tastiera, e la scheda resta la stessa targa dell'attivita' in corso.
+    /// </para>
     /// </summary>
     private RenderFragment DowntimeSection(
         string title,
-        IReadOnlyList<ShiftDowntimeTotals> rows,
-        HomeIndicators data) =>
+        IReadOnlyList<PressDowntimeTotals> presses) =>
         @<section class="mes-dashboard__section">
             <h2 class="mes-dashboard__title">@title</h2>
 
-            @if (data.DowntimePresses.Count == 0)
+            @if (presses.Count == 0)
             {
                 <MudText Typo="Typo.body2" Class="mes-dashboard__empty">@L["Msg.NoDowntimesToday"]</MudText>
             }
             else
             {
                 <div class="mes-dashboard__cards">
-                    @foreach (var pressId in data.DowntimePresses)
+                    @foreach (var press in presses)
                     {
-                        <MudPaper Elevation="0" Class="mes-tile">
-                            <span class="mes-tile__press">@pressId</span>
+                        <details class="mes-tile mes-tile--expandable">
+                            <summary class="mes-tile__summary">
+                                <span class="mes-tile__press">@press.PressId</span>
 
-                            @foreach (var shift in HomeIndicators.ForPress(rows, pressId))
-                            {
-                                <span class="mes-tile__shift">@shift.ShiftId</span>
-
-                                <span class="mes-tile__value mes-tile__value--secondary @Zero(shift.Count)">@shift.Count</span>
+                                <span class="mes-tile__value @Zero(press.Count)">@press.Count</span>
                                 <span class="mes-tile__label">@L["Field.DowntimeCount"]</span>
 
-                                <span class="mes-tile__value mes-tile__value--secondary @Zero(shift.Total)">@Duration(shift.Total)</span>
+                                <span class="mes-tile__value mes-tile__value--secondary @Zero(press.Total)">
+                                    @Duration(press.Total)
+                                </span>
                                 <span class="mes-tile__label">@L["Field.DowntimeDuration"]</span>
-                            }
-                        </MudPaper>
+                            </summary>
+
+                            <div class="mes-tile__detail">
+                                @foreach (var shift in press.Shifts)
+                                {
+                                    <span class="mes-tile__shift">@shift.ShiftId</span>
+                                    <span class="mes-tile__detail-value @Zero(shift.Count)">@shift.Count</span>
+                                    <span class="mes-tile__detail-value @Zero(shift.Total)">@Duration(shift.Total)</span>
+                                }
+                            </div>
+                        </details>
                     }
                 </div>
             }

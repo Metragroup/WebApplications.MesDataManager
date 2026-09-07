@@ -23,11 +23,18 @@ public interface IShiftCalendar
 /// <summary>Lotti aperti e da riconciliare di una pressa: la sezione "Attivita' in corso".</summary>
 public sealed record PressActivity(string PressId, int OpenBatches, int ToReconcile);
 
+/// <summary>Fermi di un turno: quanti sono e quanto sono durati in tutto.</summary>
+public sealed record ShiftDowntimeTotals(string ShiftId, int Count, TimeSpan Total);
+
 /// <summary>
-/// Fermi di un turno su una pressa: quanti sono e quanto sono durati in tutto. Una riga per
-/// pressa e turno, per ciascuno dei due tipi di fermo.
+/// Fermi di una pressa nella giornata: il totale, che e' quello che si guarda per primo, e il
+/// dettaglio per turno, che spiega da dove viene.
 /// </summary>
-public sealed record ShiftDowntimeTotals(string PressId, string ShiftId, int Count, TimeSpan Total);
+public sealed record PressDowntimeTotals(
+    string PressId,
+    int Count,
+    TimeSpan Total,
+    IReadOnlyList<ShiftDowntimeTotals> Shifts);
 
 /// <summary>
 /// Contenuto del pannello di apertura. Le due sezioni rispondono a due domande diverse: cosa sta
@@ -36,24 +43,10 @@ public sealed record ShiftDowntimeTotals(string PressId, string ShiftId, int Cou
 public sealed record HomeIndicators(
     DateOnly Day,
     IReadOnlyList<PressActivity> Activity,
-    IReadOnlyList<ShiftDowntimeTotals> Macro,
-    IReadOnlyList<ShiftDowntimeTotals> Micro)
+    IReadOnlyList<PressDowntimeTotals> Macro,
+    IReadOnlyList<PressDowntimeTotals> Micro)
 {
     public static HomeIndicators Empty(DateOnly day) => new(day, [], [], []);
-
-    /// <summary>
-    /// Presse presenti negli indicatori dei fermi, nell'ordine in cui compaiono: sono le schede
-    /// da disegnare. Ce n'e' una per ogni pressa che ha turni nella giornata, anche se non ha
-    /// avuto fermi.
-    /// </summary>
-    public IReadOnlyList<string> DowntimePresses =>
-        [.. Macro.Concat(Micro).Select(r => r.PressId).Distinct().Order(StringComparer.Ordinal)];
-
-    /// <summary>Turni di una pressa, in ordine di inizio: sono le righe dentro la scheda.</summary>
-    public static IEnumerable<ShiftDowntimeTotals> ForPress(
-        IReadOnlyList<ShiftDowntimeTotals> rows,
-        string pressId) =>
-        rows.Where(r => r.PressId == pressId);
 }
 
 /// <summary>Indicatori del pannello di apertura.</summary>
