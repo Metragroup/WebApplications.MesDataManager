@@ -1,0 +1,164 @@
+@page "/diagnostica/identita"
+@using System.Security.Claims
+
+@inject IUserContext User
+@inject IStringLocalizer<Strings> L
+@inject AuthenticationStateProvider AuthenticationState
+
+@*
+    Cosa e' arrivato nel token e cosa l'applicazione ne ha ricavato. Serve quando i permessi
+    non corrispondono a quelli assegnati nel portale: dice da che parte cercare, se nel token
+    (ruolo assente) o nell'applicazione (ruolo presente ma permesso negato).
+
+    Non richiede nessun ruolo di proposito — il caso da diagnosticare e' proprio quello di chi
+    non ne ha — e mostra soltanto le claim di chi la guarda, che sono sue.
+
+    I testi non passano dai file di risorse: e' una pagina tecnica di assistenza, non una
+    pagina di lavoro. Si raggiunge dal menu dell'utente, non dalla navigazione delle pagine.
+*@
+
+<PageTitle>Identità e permessi &middot; @L["App.Title"]</PageTitle>
+
+<div class="mes-page">
+    <header class="mes-page__head">
+        <h1 class="mes-page__title">Identità e permessi</h1>
+    </header>
+
+    <MudPaper Elevation="0" Class="pa-4 mb-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-2">Utente</MudText>
+
+        <MudSimpleTable Dense="true" Bordered="false" Striped="true" Elevation="0">
+            <tbody>
+                <tr>
+                    <td>Nome utente</td>
+                    <td>@_permissions.UserName</td>
+                </tr>
+                <tr>
+                    <td>Nome visualizzato</td>
+                    <td>@_permissions.DisplayName</td>
+                </tr>
+                <tr>
+                    <td>Autenticato</td>
+                    <td>@Yes(_permissions.IsAuthenticated)</td>
+                </tr>
+                <tr>
+                    <td>Tipo di autenticazione</td>
+                    <td>@(_identityType ?? "(nessuno)")</td>
+                </tr>
+                <tr>
+                    <td>Claim dei ruoli cercata da IsInRole</td>
+                    <td>@(_roleClaimType ?? "(nessuna)")</td>
+                </tr>
+            </tbody>
+        </MudSimpleTable>
+    </MudPaper>
+
+    <MudPaper Elevation="0" Class="pa-4 mb-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-2">Permessi calcolati</MudText>
+
+        <MudSimpleTable Dense="true" Bordered="false" Striped="true" Elevation="0">
+            <tbody>
+                <tr>
+                    <td>Consultazione</td>
+                    <td>@Yes(_permissions.CanRead)</td>
+                </tr>
+                <tr>
+                    <td>Inserimento anagrafiche</td>
+                    <td>@Yes(_permissions.CanInsert)</td>
+                </tr>
+                <tr>
+                    <td>Modifica anagrafiche</td>
+                    <td>@Yes(_permissions.CanUpdate)</td>
+                </tr>
+                <tr>
+                    <td>Eliminazione anagrafiche</td>
+                    <td>@Yes(_permissions.CanDelete)</td>
+                </tr>
+                <tr>
+                    <td>Scrittura dati di produzione</td>
+                    <td>@Yes(_permissions.CanEditProduction)</td>
+                </tr>
+            </tbody>
+        </MudSimpleTable>
+    </MudPaper>
+
+    <MudPaper Elevation="0" Class="pa-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-2">
+            Ruoli nel token (@_roles.Count)
+        </MudText>
+
+        @if (_roles.Count is 0)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                Il token non contiene nessun ruolo: l'assegnazione nel portale non e' arrivata
+                fin qui. Uscire e rientrare, e verificare l'assegnazione sull'applicazione
+                aziendale corrispondente a questa registrazione.
+            </MudAlert>
+        }
+        else
+        {
+            <ul>
+                @foreach (var role in _roles)
+                {
+                    <li><code>@role</code></li>
+                }
+            </ul>
+        }
+
+        <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2">
+            Tutte le claim (@_claims.Count)
+        </MudText>
+
+        <MudSimpleTable Dense="true" Bordered="false" Striped="true" Elevation="0">
+            <thead>
+                <tr>
+                    <th>Tipo</th>
+                    <th>Valore</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var claim in _claims)
+                {
+                    <tr>
+                        <td><code>@claim.Type</code></td>
+                        <td>@claim.Value</td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    </MudPaper>
+</div>
+
+@code {
+    private UserPermissions _permissions = UserPermissions.Anonymous;
+    private IReadOnlyList<Claim> _claims = [];
+    private IReadOnlyList<string> _roles = [];
+    private string? _identityType;
+    private string? _roleClaimType;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _permissions = await User.GetCurrentAsync();
+
+        var state = await AuthenticationState.GetAuthenticationStateAsync();
+        var principal = state.User;
+
+        _claims = [.. principal.Claims.OrderBy(claim => claim.Type, StringComparer.Ordinal)];
+        _identityType = principal.Identity?.AuthenticationType;
+        _roleClaimType = (principal.Identity as ClaimsIdentity)?.RoleClaimType;
+
+        // Entrambi i tipi di claim: quello originale di Entra ID e quello in cui il gestore del
+        // token lo traduce. Vedere quale dei due e' arrivato dice se la traduzione ha avuto luogo.
+        _roles =
+        [
+            .. principal.Claims
+                .Where(claim =>
+                    claim.Type == ClaimTypes.Role ||
+                    claim.Type == AppRoles.RolesClaimType)
+                .Select(claim => $"{claim.Value}  —  {claim.Type}")
+                .OrderBy(role => role, StringComparer.Ordinal),
+        ];
+    }
+
+    private static string Yes(bool value) => value ? "sì" : "no";
+}

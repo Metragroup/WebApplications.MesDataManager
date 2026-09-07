@@ -5,6 +5,9 @@ using MesDataManager.Web;
 using MesDataManager.Web.Components;
 using MesDataManager.Web.Security;
 
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.Identity.Web.UI;
@@ -125,6 +128,32 @@ app.UseAuthorization();
 app.MapStaticAssets();
 app.MapControllers();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+
+// Uscita. Non si usa l'endpoint di Microsoft.Identity.Web.UI: quello rimanda a una Razor Page
+// del pacchetto, e questa applicazione monta componenti Blazor (MapRazorComponents) e non
+// Razor Pages, quindi quell'indirizzo non esiste e il ritorno da Entra ID finisce altrove.
+// Qui i due passi sono espliciti: prima il cookie dell'applicazione, poi la sessione su
+// Entra ID. Il secondo e' quello che conta per i ruoli — cancellare solo il cookie farebbe
+// rientrare l'utente senza interazione, con lo stesso token e quindi gli stessi ruoli di prima.
+if (app.Configuration.SupportsSignOut())
+{
+    // Anonimo di proposito: se il cookie e' scaduto o illeggibile l'uscita deve comunque poter
+    // chiudere la sessione su Entra ID, invece di pretendere un accesso per poterlo revocare.
+    app.MapGet($"/{AuthenticationSetup.SignOutPath}", async (HttpContext http) =>
+    {
+        var pathBase = http.Request.PathBase.Value?.TrimEnd('/') ?? string.Empty;
+
+        // Indirizzo assoluto: e' l'unico che il gestore di OpenID Connect non riscrive, e
+        // sotto IIS deve contenere il percorso virtuale dell'applicazione.
+        var landing =
+            $"{http.Request.Scheme}://{http.Request.Host}{pathBase}/{AuthenticationSetup.SignedOutPath}";
+
+        await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        await http.SignOutAsync(
+            OpenIdConnectDefaults.AuthenticationScheme,
+            new AuthenticationProperties { RedirectUri = landing });
+    }).AllowAnonymous();
+}
 
 // Cambio lingua: in Blazor Server la cultura si applica al circuito, quindi serve una
 // richiesta HTTP vera e un ricaricamento della pagina.

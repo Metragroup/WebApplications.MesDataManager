@@ -35,6 +35,15 @@ public static class AppRoles
     /// </para>
     /// </summary>
     public const string ProductionEditor = "Production.Editor";
+
+    /// <summary>
+    /// La claim in cui Entra ID recapita i ruoli dell'applicazione. Non e' quella su cui
+    /// <see cref="System.Security.Claims.ClaimsPrincipal.IsInRole"/> cerca per convenzione
+    /// (<see cref="ClaimTypes.Role"/>): la traduzione fra le due la fa il gestore del token,
+    /// e vale solo finche' la mappatura delle claim in ingresso resta accesa. Vedi
+    /// <see cref="UserPermissions.HasRole"/>.
+    /// </summary>
+    public const string RolesClaimType = "roles";
 }
 
 /// <summary>
@@ -101,16 +110,16 @@ public sealed record UserPermissions
             ?? "anonimo";
 
         var canWriteArchives =
-            principal.IsInRole(AppRoles.ArchiveEditor) ||
-            principal.IsInRole(AppRoles.Administrator);
+            HasRole(principal, AppRoles.ArchiveEditor) ||
+            HasRole(principal, AppRoles.Administrator);
 
-        var isAdministrator = principal.IsInRole(AppRoles.Administrator);
-        var canEditProduction = principal.IsInRole(AppRoles.ProductionEditor) || isAdministrator;
+        var isAdministrator = HasRole(principal, AppRoles.Administrator);
+        var canEditProduction = HasRole(principal, AppRoles.ProductionEditor) || isAdministrator;
 
         var canRead =
             canWriteArchives ||
             canEditProduction ||
-            principal.IsInRole(AppRoles.Reader);
+            HasRole(principal, AppRoles.Reader);
 
         return new UserPermissions
         {
@@ -124,6 +133,25 @@ public sealed record UserPermissions
             CanEditProduction = canEditProduction,
         };
     }
+
+    /// <summary>
+    /// Verifica un ruolo guardando sia dove lo cerca <c>IsInRole</c> sia la claim originale di
+    /// Entra ID.
+    /// <para>
+    /// I ruoli arrivano nella claim <c>roles</c> (<see cref="AppRoles.RolesClaimType"/>), mentre
+    /// <c>IsInRole</c> cerca nel tipo di claim dichiarato dall'identita', che per un token
+    /// OpenID Connect e' <see cref="ClaimTypes.Role"/>. Le due combaciano solo perche' il
+    /// gestore del token traduce <c>roles</c> in <see cref="ClaimTypes.Role"/>, e lo fa solo
+    /// finche' <c>MapInboundClaims</c> resta acceso: e' un valore predefinito della libreria,
+    /// non una scelta di questo progetto, e se un aggiornamento lo spegnesse nessun ruolo
+    /// risulterebbe piu' assegnato — l'applicazione non darebbe errore, semplicemente
+    /// negherebbe tutto, lettura compresa. Guardare entrambi i tipi di claim costa un confronto
+    /// e rende il permesso indipendente da quell'impostazione.
+    /// </para>
+    /// </summary>
+    private static bool HasRole(ClaimsPrincipal principal, string role) =>
+        principal.IsInRole(role) ||
+        principal.HasClaim(AppRoles.RolesClaimType, role);
 }
 
 /// <summary>

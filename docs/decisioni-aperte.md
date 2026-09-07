@@ -368,3 +368,47 @@ rinvii.
 **Cosa resta.** Chi ha gia' un cookie di autenticazione scritto con un `PathBase` in
 maiuscolo (da prima di questa correzione) lo perde alla prima richiesta successiva, perche' il
 percorso del cookie non combacia piu': si ripresenta il login, una volta sola.
+
+---
+
+### C5 — Durata del cookie di autenticazione e ritardo dei ruoli — *chiusa il 7 settembre 2026, lasciata invariata*
+
+**Com'era.** Scoperto in esercizio diagnosticando un caso che sembrava un difetto dei permessi:
+utente con ruolo `Administrator` assegnato nel portale, anagrafiche in sola lettura, produzione
+scrivibile. Nessuna delle due spiegazioni ovvie regge — la mappatura della claim `roles` e'
+corretta (verificata sulle opzioni reali, vedi `EntraRoleClaimTests`) e l'assegnazione in Entra
+ID era giusta. La combinazione dei permessi corrispondeva invece a `Production.Editor`, il ruolo
+che l'utente aveva **al momento dell'accesso precedente**.
+
+**La causa.** I ruoli non si leggono da Entra ID in diretta: sono una fotografia scattata nel
+token all'accesso e conservata nel cookie di autenticazione. Cambiare o revocare
+un'assegnazione nel portale non tocca un cookie gia' emesso. Il cookie predefinito di ASP.NET
+Core dura fino a 14 giorni con scadenza scorrevole, e non essendo persistente dovrebbe morire
+con la sessione del browser — ma Chrome, con il ripristino delle schede, riporta in vita anche i
+cookie di sessione, quindi chiudere e riaprire il browser non basta.
+
+**Opzioni considerate.**
+
+1. Ridurre `ExpireTimeSpan`, per esempio a 8 ore, la durata di un turno.
+2. Rivalidare i claim a ogni richiesta, o periodicamente, contro Entra ID.
+3. Lasciare invariato.
+
+**Decisione: lasciare invariato.** Da quando l'uscita e' esplicita e completa — voce *Esci* nel
+menu utente, endpoint `/uscita`, che cancella il cookie **e** chiude la sessione su Entra ID —
+un cambio di ruolo si applica su richiesta in pochi secondi, e non serve accorciare la finestra
+per tutti per un evento raro. Le opzioni 1 e 2 costerebbero rispettivamente un accesso in piu'
+al giorno a tutti e una dipendenza continua dalla raggiungibilita' di Entra ID, a fronte di un
+rischio che in uno stabilimento con account di dominio e' modesto.
+
+**Cosa resta, e va saputo.**
+
+- Un ruolo **revocato** resta effettivo fino al prossimo accesso dell'utente, quindi al massimo
+  per la durata del cookie. Disabilitare l'account in Entra ID non chiude una sessione gia'
+  aperta: blocca i nuovi accessi.
+- La leva d'emergenza, se servisse invalidare tutte le sessioni in una volta, e' la cartella
+  delle chiavi di `DataProtection` (`C:\ProgramData\MesDataManager\keys`): cancellandola i
+  cookie emessi diventano illeggibili e tutti tornano al login. E' un gesto brusco ma immediato,
+  e non richiede un deploy.
+- Per capire con quali ruoli sta lavorando un utente ci sono due strumenti nati da questa
+  diagnosi: la riga di log a ogni accesso (`Accesso di ...: ruoli nel token = ...`) e la pagina
+  *Identita' e permessi* nel menu utente.

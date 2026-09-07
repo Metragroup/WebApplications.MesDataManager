@@ -106,7 +106,13 @@ primo passo e' verificare che sia quella giusta e completarla. Su quella registr
 **Authentication.**
 
 - Redirect URI, tipo *Web*: `https://itbsintra01.metra.local/mesdatamanager/signin-oidc`
-- Front-channel logout URL: `https://itbsintra01.metra.local/mesdatamanager/signout-callback-oidc`
+- Redirect URI, tipo *Web*, **anche**:
+  `https://itbsintra01.metra.local/mesdatamanager/signout-callback-oidc`. E' l'indirizzo che
+  l'applicazione passa come `post_logout_redirect_uri`, ed Entra ID lo confronta con l'elenco
+  dei redirect URI: se non c'e', l'uscita si ferma sulla pagina generica di Microsoft e non
+  torna piu' all'applicazione. Il campo *Front-channel logout URL* e' un'altra cosa — serve a
+  Entra ID per avvisare l'applicazione di un'uscita avvenuta altrove — e non sostituisce
+  questa voce.
 - *Implicit grant and hybrid flows*: spuntare **ID tokens**. Serve perche' il flusso e' di sola
   autenticazione, senza client secret. Se manca, il primo accesso risponde `AADSTS700054`.
 

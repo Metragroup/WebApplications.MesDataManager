@@ -1,3 +1,5 @@
+using System.Security.Claims;
+
 using MesDataManager.Application.Security;
 
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -20,6 +22,19 @@ public enum AuthenticationMode
 /// <summary>Configura l'autenticazione scegliendo fra Entra ID e utente di sviluppo.</summary>
 public static class AuthenticationSetup
 {
+    /// <summary>
+    /// Percorso dell'uscita, relativo alla base dell'applicazione. Cancella il cookie e chiude
+    /// la sessione su Entra ID; lo monta <c>Program.cs</c>.
+    /// </summary>
+    public const string SignOutPath = "uscita";
+
+    /// <summary>
+    /// Percorso su cui si atterra a uscita avvenuta. E' l'unica pagina raggiungibile senza
+    /// autenticazione — deve esserlo, altrimenti l'uscita finirebbe con una richiesta di
+    /// accesso — e la dichiarazione sta nella pagina stessa, con <c>[AllowAnonymous]</c>.
+    /// </summary>
+    public const string SignedOutPath = "uscita/eseguita";
+
     public static IServiceCollection AddMesAuthentication(
         this IServiceCollection services,
         IConfiguration configuration,
@@ -78,6 +93,18 @@ public static class AuthenticationSetup
             services.Configure<CookieAuthenticationOptions>(
                 CookieAuthenticationDefaults.AuthenticationScheme,
                 options => options.Cookie.Name = ".MesDataManager.Auth");
+
+            LogRolesOnSignIn(services);
+
+            // Dove si atterra a uscita avvenuta, cioe' al ritorno da Entra ID sul
+            // SignedOutCallbackPath. Il valore predefinito e' la radice dell'applicazione, che
+            // pretende l'autenticazione: l'uscita finirebbe con una richiesta di accesso, e chi
+            // ha la sessione di Windows valida rientrerebbe subito senza accorgersi di essere
+            // uscito. Vale anche per l'endpoint di uscita di Microsoft.Identity.Web.UI, che
+            // rimanda a una Razor Page del pacchetto qui non montata.
+            services.Configure<OpenIdConnectOptions>(
+                OpenIdConnectDefaults.AuthenticationScheme,
+                options => options.SignedOutRedirectUri = $"/{SignedOutPath}");
         }
 
         services.AddAuthorization(options =>
@@ -98,6 +125,54 @@ public static class AuthenticationSetup
 
         return services;
     }
+
+    /// <summary>
+    /// Scrive nel log, a ogni accesso, i ruoli arrivati nel token.
+    /// <para>
+    /// Quando un utente dice di non avere i permessi che gli sono stati assegnati nel portale,
+    /// le due cause — l'assegnazione che non e' finita nel token, oppure l'applicazione che non
+    /// la legge — si distinguono solo vedendo cosa e' arrivato davvero. Senza questa riga il log
+    /// dice che il token e' valido e nient'altro, perche' il contenuto e' considerato dato
+    /// personale e resta nascosto.
+    /// </para>
+    /// <para>
+    /// La configurazione va registrata dopo <c>AddMicrosoftIdentityWebApp</c>: le azioni di
+    /// configurazione si eseguono nell'ordine di registrazione, quindi qui
+    /// <c>OnTokenValidated</c> contiene gia' il gestore della libreria, che va richiamato prima
+    /// del nostro — non sostituito.
+    /// </para>
+    /// </summary>
+    private static void LogRolesOnSignIn(IServiceCollection services) =>
+        services.Configure<OpenIdConnectOptions>(
+            OpenIdConnectDefaults.AuthenticationScheme,
+            options =>
+            {
+                var inner = options.Events.OnTokenValidated;
+
+                options.Events.OnTokenValidated = async context =>
+                {
+                    await inner(context).ConfigureAwait(false);
+
+                    var principal = context.Principal;
+
+                    var roles = principal is null
+                        ? []
+                        : principal.Claims
+                            .Where(claim =>
+                                claim.Type == ClaimTypes.Role ||
+                                claim.Type == AppRoles.RolesClaimType)
+                            .Select(claim => $"{claim.Value} ({claim.Type})")
+                            .ToArray();
+
+                    context.HttpContext.RequestServices
+                        .GetRequiredService<ILoggerFactory>()
+                        .CreateLogger(typeof(AuthenticationSetup).FullName!)
+                        .LogInformation(
+                            "Accesso di {User}: ruoli nel token = {Roles}.",
+                            principal?.FindFirst("preferred_username")?.Value ?? "(sconosciuto)",
+                            roles.Length is 0 ? "(nessuno)" : string.Join("; ", roles));
+                };
+            });
 
     /// <summary>
     /// In modalita' di sviluppo non esistono gli endpoint di Microsoft.Identity.Web.UI,

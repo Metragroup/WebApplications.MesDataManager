@@ -1,0 +1,65 @@
+@* Il percorso deve coincidere con AuthenticationSetup.SignedOutPath. *@
+@page "/uscita/eseguita"
+
+@attribute [AllowAnonymous]
+
+@inject NavigationManager Navigation
+
+@*
+    Dove si atterra a uscita avvenuta: il cookie dell'applicazione e' cancellato e la sessione
+    su Entra ID e' chiusa.
+
+    E' l'unica pagina fuori dalla FallbackPolicy, e deve esserlo: se pretendesse
+    l'autenticazione, il ritorno da Entra ID scatenerebbe subito una nuova richiesta di accesso
+    e l'uscita sembrerebbe non aver fatto nulla — chi ha la sessione di Windows valida
+    rientrerebbe perfino senza vedere una schermata.
+
+    Vale anche il contrario: la pagina e' pubblica ma il circuito Blazor no, perche' l'endpoint
+    /_blazor resta dietro la FallbackPolicy. Qui dentro non c'e' interattivita' — solo HTML
+    reso dal server — quindi ogni comando deve essere un collegamento, non un gestore di eventi.
+
+    I testi non passano dai file di risorse: la pagina si vede una volta, fuori dal lavoro
+    ordinario, e la lingua del circuito qui non e' piu' quella dell'utente.
+*@
+
+<PageTitle>Uscita eseguita &middot; MesDataManager</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+    <MudPaper Elevation="0" Class="pa-8">
+        <div class="d-flex align-center mb-4">
+            <MudIcon Icon="@Icons.Material.Outlined.CheckCircle"
+                     Color="Color.Success"
+                     Size="Size.Large"
+                     Class="mr-3" />
+            <h1 class="mes-page__title">Sei uscito</h1>
+        </div>
+
+        <MudText Typo="Typo.body1" Class="mb-2">
+            La sessione è chiusa, sia su questa applicazione sia su Microsoft Entra ID.
+        </MudText>
+
+        <MudText Typo="Typo.body2" Class="mb-6">
+            Al rientro viene emesso un token nuovo: eventuali modifiche ai ruoli assegnati nel
+            portale diventano effettive da adesso.
+        </MudText>
+
+        @*
+            Un collegamento, non un OnClick: qui l'utente non e' autenticato e il circuito
+            Blazor non parte — l'endpoint /_blazor e' coperto dalla FallbackPolicy come tutto
+            il resto — quindi la pagina e' HTML statico e nessun gestore di eventi verrebbe
+            eseguito. Si vedrebbe soltanto l'animazione del pulsante, che e' CSS.
+
+            data-enhance-nav="false" perche' il rientro finisce in un rinvio a Entra ID, fuori
+            dall'applicazione: la navigazione migliorata lo seguirebbe via fetch, e serve invece
+            un caricamento vero della pagina.
+        *@
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Outlined.Login"
+                   Href="@Navigation.BaseUri"
+                   data-enhance-nav="false">
+            Rientra
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+

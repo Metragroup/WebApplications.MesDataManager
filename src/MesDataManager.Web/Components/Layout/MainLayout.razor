@@ -46,22 +46,34 @@
             }
         </MudMenu>
 
-        <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
-            <ActivatorContent>
-                <MudButton Variant="Variant.Text"
-                           Color="Color.Inherit"
-                           StartIcon="@Icons.Material.Outlined.AccountCircle">
-                    @(_user.DisplayName ?? _user.UserName)
-                </MudButton>
-            </ActivatorContent>
+        @*
+            Etichetta e icona sono parametri del menu, non un pulsante dentro ActivatorContent:
+            MudButton ferma la propagazione del clic (ClickPropagation e' false per impostazione
+            predefinita da MudBlazor 8), quindi il clic non arrivava mai all'attivatore e il
+            menu non si apriva. Si vedeva l'animazione del pulsante e nient'altro.
+        *@
+        <MudMenu Label="@(_user.DisplayName ?? _user.UserName)"
+                 StartIcon="@Icons.Material.Outlined.AccountCircle"
+                 Variant="Variant.Text"
+                 Color="Color.Inherit"
+                 AnchorOrigin="Origin.BottomRight"
+                 TransformOrigin="Origin.TopRight">
             <ChildContent>
+                @* Anche questo indirizzo e' relativo alla base dell'applicazione. La pagina
+                   mostra ruoli e permessi di chi la apre: e' il primo posto da guardare quando
+                   i permessi non corrispondono a quelli assegnati nel portale. *@
+                <MudMenuItem Icon="@Icons.Material.Outlined.Badge"
+                             Href="diagnostica/identita">
+                    Identità e permessi
+                </MudMenuItem>
+
                 @if (Configuration.SupportsSignOut())
                 {
-                    @* L'indirizzo e' senza "/" iniziale: si risolve sulla base
-                       dell'applicazione, che sotto IIS e' /MesDataManager. *@
-                    <MudMenuItem Icon="@Icons.Material.Outlined.Logout"
-                                 Href="MicrosoftIdentity/Account/SignOut"
-                                 ForceLoad="true">
+                    @* Non un Href: l'uscita e' un endpoint HTTP, non una pagina del router, e
+                       un collegamento interno verrebbe intercettato dal router lato client, che
+                       non trovando nessuna rotta corrispondente mostrerebbe "pagina non
+                       trovata". Serve un ricaricamento vero, come per il cambio lingua. *@
+                    <MudMenuItem Icon="@Icons.Material.Outlined.Logout" OnClick="SignOut">
                         @L["Action.SignOut"]
                     </MudMenuItem>
                 }
@@ -157,6 +169,14 @@
 
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    /// <summary>
+    /// Uscita: l'indirizzo e' relativo alla base dell'applicazione — sotto IIS
+    /// /mesdatamanager — e il ricaricamento e' necessario perche' da li' si passa al rinvio
+    /// verso Entra ID. Vedi l'endpoint in Program.cs.
+    /// </summary>
+    private void SignOut() =>
+        Navigation.NavigateTo(AuthenticationSetup.SignOutPath, forceLoad: true);
 
     /// <summary>
     /// Il cambio lingua passa da un endpoint HTTP: la cultura del circuito Blazor Server e'
