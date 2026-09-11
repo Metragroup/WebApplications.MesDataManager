@@ -185,11 +185,12 @@ decisioni e per il perche':
 
 **Due misure che hanno cambiato il progetto**, prese su `MES40_RDP_TEST` il 9 settembre 2026:
 
-- `usp_Batch_Elab` impiega **~35 secondi per lotto** (34,2 / 36,8 / 36,7 su tre esecuzioni). Sta
-  quindi **fuori** dalla transazione — tenere aperti i lock su `Press.Batch` e `Press.BatchBillet`
-  per quaranta secondi bloccherebbe la raccolta dati — e vuole un timeout esplicito, perche' il
-  predefinito dell'applicazione e' 30 secondi e la farebbe fallire sempre. Il salvataggio di un
-  lotto dura di conseguenza circa quaranta secondi, come nel vecchio applicativo.
+- `usp_Batch_Elab` impiega **~35 secondi per lotto** (34,2 / 36,8 / 36,7 su tre esecuzioni).
+  Chiamarla sul momento faceva durare quaranta secondi ogni salvataggio; dall'**11 settembre
+  2026** non si chiama piu': il salvataggio rimette `IsBatchProcessed` a zero e il lotto lo
+  prende il lavoro pianificato del MES, che ogni cinque minuti esegue la procedura sui lotti in
+  coda. Salvataggio misurato: **463 ms** su un lotto vero. Il lotto resta non modificabile
+  finche' il MES non ha finito.
 - lo **stato d'uso delle matrici**: sui sei mesi precedenti, 215 lotti su matrici disponibili, 94
   su matrici **senza riga di stato** e 37 su matrici di prova. Avvisare sullo stato mancante
   avrebbe significato un avviso su un quarto delle assegnazioni, quindi resta silenzioso come
@@ -198,9 +199,10 @@ decisioni e per il perche':
 **I valori di riepilogo li ricalcola lo SCADA, non questa applicazione.** `usp_Batch_Elab`
 ricalcola i valori di riepilogo di lotto e billette e **appartiene alle procedure di raccolta dati
 del sistema SCADA**: la sua logica non va replicata qui. La regola per la tranche di scrittura e'
-quindi semplice — l'applicazione scrive solo cio' che l'operatore ha modificato e poi **richiama
-la procedura dopo il salvataggio dei dati di lotto**, come faceva il vecchio applicativo al
-termine del salvataggio della scheda.
+quindi semplice — l'applicazione scrive solo cio' che l'operatore ha modificato e poi **rimette il
+lotto nella coda di elaborazione** (`IsBatchProcessed = 0`), dove il lavoro pianificato del MES lo
+prende entro cinque minuti. Il vecchio applicativo richiamava invece la procedura al termine del
+salvataggio della scheda, e faceva aspettare.
 
 Ne discende che pesi, conteggi e tempi di ciclo sono **derivati**: non vanno calcolati in C# ne'
 scritti a mano, e dopo un salvataggio i valori giusti sono quelli che si rileggono a valle della

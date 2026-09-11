@@ -727,14 +727,20 @@
   <data name="Msg.BatchDowntimes" xml:space="preserve">
     <value>Batch downtimes</value>
   </data>
+  <data name="Msg.BatchAwaitingElaboration" xml:space="preserve">
+    <value>Awaiting processing</value>
+  </data>
+  <data name="Msg.BatchElaborationPending" xml:space="preserve">
+    <value>The batch is queued for processing: the MES recalculates its summary values within ten minutes. Until then the values shown are the previous ones and the batch cannot be edited.</value>
+  </data>
   <data name="Msg.BatchNotClosed" xml:space="preserve">
     <value>Open</value>
   </data>
-  <data name="Msg.BatchProcessing" xml:space="preserve">
-    <value>Extrusion in progress</value>
-  </data>
   <data name="Msg.BatchProdOrders" xml:space="preserve">
     <value>Production orders</value>
+  </data>
+  <data name="Msg.BatchSavedElaborationQueued" xml:space="preserve">
+    <value>Changes saved. The MES will reprocess the batch within five minutes: until then the summary values are still the previous ones.</value>
   </data>
   <data name="Msg.BatchStateAny" xml:space="preserve">
     <value>All</value>
@@ -1035,12 +1041,6 @@
   </data>
   <data name="Msg.RenumberBilletsTitle" xml:space="preserve">
     <value>Renumber billets</value>
-  </data>
-  <data name="Msg.SavedWithoutRecalculation" xml:space="preserve">
-    <value>Changes saved, but the batch recalculation failed: the summary values are still the previous ones.</value>
-  </data>
-  <data name="Msg.SavingBatch" xml:space="preserve">
-    <value>Saving: recalculating the batch takes about forty seconds.</value>
   </data>
   <data name="Msg.SearchPlaceholder" xml:space="preserve">
     <value>Search…</value>

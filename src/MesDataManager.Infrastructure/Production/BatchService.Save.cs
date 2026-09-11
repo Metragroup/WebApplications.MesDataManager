@@ -10,11 +10,11 @@ namespace MesDataManager.Infrastructure.Production;
 
 /// <summary>
 /// <see cref="BatchService"/>, salvataggio delle modifiche in sospeso: una transazione per
-/// testata, billette, marcatori e rettifiche, e il ricalcolo del MES <b>dopo</b> il commit.
+/// testata, billette, marcatori e rettifiche, e il lotto rimesso in coda di elaborazione.
 /// </summary>
 public sealed partial class BatchService
 {
-    public async Task<BatchSaveResult> SaveAsync(
+    public async Task<BatchDetail> SaveAsync(
         BatchEditModel edit,
         CancellationToken cancellationToken = default)
     {
@@ -29,65 +29,68 @@ public sealed partial class BatchService
         var owner = LockOwner(permissions) ?? throw ProductionException.Forbidden();
         var batchId = edit.BatchId;
 
-        await using var context = await contextFactory
-            .CreateDbContextAsync(cancellationToken)
+        // Una transazione sola per tutto, affidata alla strategia di ripetizione
+        // (<see cref="InTransactionAsync"/>): testata, billette, marcatori e rettifiche.
+        await InTransactionAsync(
+            async (context, ct) =>
+            {
+                var batch = await context.Batches
+                    .SingleOrDefaultAsync(b => b.BatchId == batchId, ct)
+                    .ConfigureAwait(false)
+                    ?? throw ProductionException.NotFound();
+
+                // Il blocco si ricontrolla adesso e non si crede a quello che il circuito
+                // ricorda: nel frattempo un amministratore puo' averlo forzato, o la scadenza
+                // puo' averlo liberato e un collega preso.
+                if (!batch.IsLock || batch.LockUsr != owner)
+                {
+                    throw ProductionException.BatchLockLost(batch.LockUsr);
+                }
+
+                if (batch.IsErpImported)
+                {
+                    throw ProductionException.BatchAlreadyReconciled();
+                }
+
+                var billets = await context.BatchBillets
+                    .Where(b => b.BatchId == batchId)
+                    .ToListAsync(ct)
+                    .ConfigureAwait(false);
+
+                ApplyHeader(edit, batch, billets);
+                ApplyBillets(edit, batch, billets, context);
+                await ApplyAdjustmentsAsync(edit, batch, context, ct).ConfigureAwait(false);
+                await ApplyDiagnosticsClosureAsync(batch, context, ct).ConfigureAwait(false);
+
+                // Il blocco si rilascia nella stessa transazione: un salvataggio riuscito che
+                // lasciasse il lotto bloccato sarebbe indistinguibile da un blocco orfano.
+                batch.IsLock = false;
+                batch.LockUsr = null;
+                batch.LockTs = null;
+
+                // Il lotto torna in coda di elaborazione. I valori di riepilogo — pesi,
+                // conteggi, tempi di ciclo — li ricalcola usp_Batch_Elab, che costa circa 35
+                // secondi per lotto: chiamarla qui significava far aspettare l'operatore quaranta
+                // secondi a ogni salvataggio. Non serve, perche' sul MES gira gia' un lavoro
+                // pianificato che ogni cinque minuti la esegue su tutti i lotti con
+                // IsPressClosed = 1 e IsBatchProcessed = 0 (SQL Server Agent, "MES40_RDP -
+                // Press.usp_Batch_Elab"). Rimettere il flag a zero e' quindi tutto cio' che
+                // serve: e' la coda di quel lavoro, ed e' la procedura stessa a rialzarlo quando
+                // ha finito.
+                batch.IsBatchProcessed = false;
+
+                try
+                {
+                    await context.SaveChangesAsync(ct).ConfigureAwait(false);
+                }
+                catch (DbUpdateException ex)
+                {
+                    logger.LogWarning(ex, "Lotti: salvataggio del lotto {Batch} non riuscito.", batchId);
+                    throw ProductionException.SaveFailed(ex);
+                }
+            },
+            cancellationToken)
             .ConfigureAwait(false);
-
-        // Una transazione sola per tutto. Se il contesto ne ha gia' una — e' il caso delle prove
-        // sul database vero, che girano dentro una transazione poi annullata — ci si aggancia
-        // invece di aprirne un'altra, che SQL Server rifiuterebbe.
-        await using var transaction = context.Database.CurrentTransaction is null
-            ? await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)
-            : null;
-
-        var batch = await context.Batches
-            .SingleOrDefaultAsync(b => b.BatchId == batchId, cancellationToken)
-            .ConfigureAwait(false)
-            ?? throw ProductionException.NotFound();
-
-        // Il blocco si ricontrolla adesso e non si crede a quello che il circuito ricorda: nel
-        // frattempo un amministratore puo' averlo forzato, o la scadenza puo' averlo liberato e
-        // un collega preso.
-        if (!batch.IsLock || batch.LockUsr != owner)
-        {
-            throw ProductionException.BatchLockLost(batch.LockUsr);
-        }
-
-        if (batch.IsErpImported)
-        {
-            throw ProductionException.BatchAlreadyReconciled();
-        }
-
-        var billets = await context.BatchBillets
-            .Where(b => b.BatchId == batchId)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        ApplyHeader(edit, batch, billets);
-        ApplyBillets(edit, batch, billets, context);
-        await ApplyAdjustmentsAsync(edit, batch, context, cancellationToken).ConfigureAwait(false);
-        await ApplyDiagnosticsClosureAsync(batch, context, cancellationToken).ConfigureAwait(false);
-
-        // Il blocco si rilascia nella stessa transazione: un salvataggio riuscito che lasciasse
-        // il lotto bloccato sarebbe indistinguibile da un blocco orfano.
-        batch.IsLock = false;
-        batch.LockUsr = null;
-        batch.LockTs = null;
-
-        try
-        {
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (DbUpdateException ex)
-        {
-            logger.LogWarning(ex, "Lotti: salvataggio del lotto {Batch} non riuscito.", batchId);
-            throw ProductionException.SaveFailed(ex);
-        }
-
-        if (transaction is not null)
-        {
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-        }
 
         logger.LogInformation(
             "Lotti: {User} ha salvato il lotto {Batch} ({Billets} billette, {Deleted} rimosse).",
@@ -96,18 +99,16 @@ public sealed partial class BatchService
             edit.Billets.Count,
             edit.DeletedBilletIds.Count);
 
-        // Il ricalcolo sta FUORI dalla transazione, dopo il commit. Misurato su MES40_RDP_TEST il
-        // 9 settembre 2026: usp_Batch_Elab impiega circa 35 secondi per lotto, stabilmente e su
-        // qualunque lotto. Tenere aperta una transazione di scrittura su Press.Batch e
-        // Press.BatchBillet per quaranta secondi bloccherebbe la raccolta dati del MES, che su
-        // quelle tabelle scrive di continuo: l'atomicita' non vale quel prezzo, ed e' il motivo
-        // per cui anche il vecchio applicativo le chiamava dopo il salvataggio.
-        var recalculated = await RecalculateAsync(batchId, cancellationToken).ConfigureAwait(false);
+        // Il riallineamento dei log di pesatura resta a carico dell'applicazione: il lavoro
+        // periodico del MES non lo fa, e costa 109 millisecondi (misurati su MES40_RDP_TEST
+        // l'11 settembre 2026), quindi non c'e' ragione di differirlo. Sta comunque fuori dalla
+        // transazione: e' un riallineamento di dati altrui, e un suo fallimento non deve
+        // annullare le modifiche dell'operatore.
+        await RealignScaleLogsAsync(batchId, cancellationToken).ConfigureAwait(false);
 
-        // Rilettura obbligatoria: i valori di riepilogo li ha appena riscritti la procedura.
-        var detail = await GetDetailAsync(batchId, cancellationToken).ConfigureAwait(false);
-
-        return new BatchSaveResult(detail, recalculated);
+        // Rilettura: la fotografia deve mostrare lo stato vero, compresa l'attesa di
+        // elaborazione appena messa a database.
+        return await GetDetailAsync(batchId, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -368,33 +369,26 @@ public sealed partial class BatchService
     }
 
     /// <summary>
-    /// Richiama le procedure del MES che ricalcolano il lotto e riallineano i log di pesatura.
-    /// Restituisce falso se il ricalcolo non e' andato a buon fine.
+    /// Riallinea i log di pesatura del lotto (<c>usp_LogScaleImportUpdateByBatchID</c>): riporta
+    /// colata e lega dichiarate sulle billette sui log della bilancia.
     /// <para>
-    /// I valori di riepilogo — pesi, conteggi, tempi di ciclo — appartengono alle procedure di
-    /// raccolta dati dello SCADA: questa applicazione scrive solo cio' che l'operatore ha
-    /// modificato e poi le richiama, come faceva il vecchio applicativo.
+    /// E' l'unica procedura che resta a carico dell'applicazione, perche' il lavoro periodico del
+    /// MES non la chiama. Costa 109 millisecondi su un lotto vero (misurati su
+    /// <c>MES40_RDP_TEST</c> l'11 settembre 2026), quindi differirla non porterebbe niente.
     /// </para>
     /// <para>
-    /// <b>Il tempo di esecuzione va dichiarato:</b> misurato su <c>MES40_RDP_TEST</c> il 9
-    /// settembre 2026, <c>usp_Batch_Elab</c> impiega circa 35 secondi per lotto — 34,2s, 36,8s e
-    /// 36,7s su tre esecuzioni, su lotti diversi e a cache calda. Il timeout predefinito dei
-    /// comandi di questa applicazione e' 30 secondi, quindi <b>senza</b> il timeout esplicito qui
-    /// sotto il ricalcolo fallirebbe sempre, e nessun test su SQLite lo avrebbe rivelato.
+    /// Un suo fallimento non annulla il salvataggio, che a questo punto e' gia' confermato: i
+    /// dati dell'operatore sono a database, e i log di pesatura si riallineeranno al prossimo
+    /// salvataggio. Va registrato, non nascosto — ma nemmeno mostrato a chi ha salvato, che su
+    /// quei log non puo' fare niente.
     /// </para>
     /// <para>
-    /// Un fallimento del ricalcolo non annulla il salvataggio, che a questo punto e' gia'
-    /// confermato: i dati dell'operatore sono a database e i valori di riepilogo restano quelli
-    /// di prima, fino alla prossima elaborazione. E' un dato incoerente ma non perduto, e va
-    /// detto a chi ha salvato invece di essere nascosto.
-    /// </para>
-    /// <para>
-    /// Le procedure non esistono su SQLite, dove girano i test: la loro assenza non e' un errore.
-    /// Cio' che fanno appartiene al database e si verifica la', con la sonda descritta in
+    /// La procedura non esiste su SQLite, dove girano i test: la sua assenza non e' un errore.
+    /// Cio' che fa appartiene al database e si verifica la', con la sonda descritta in
     /// <c>docs/piano-modifica-lotto.md</c>.
     /// </para>
     /// </summary>
-    private async Task<bool> RecalculateAsync(string batchId, CancellationToken cancellationToken)
+    private async Task RealignScaleLogsAsync(string batchId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory
             .CreateDbContextAsync(cancellationToken)
@@ -403,41 +397,26 @@ public sealed partial class BatchService
         if (!context.Database.IsSqlServer())
         {
             logger.LogDebug(
-                "Lotti: ricalcolo del lotto {Batch} non eseguito, il provider non e' SQL Server.",
+                "Lotti: log di pesatura del lotto {Batch} non riallineati, il provider non e' SQL Server.",
                 batchId);
-            return true;
+            return;
         }
-
-        context.Database.SetCommandTimeout(RecalculationTimeout);
 
         try
         {
-            await context.Database
-                .ExecuteSqlAsync($"EXEC Press.usp_Batch_Elab @BatchID = {batchId}", cancellationToken)
-                .ConfigureAwait(false);
-
             await context.Database
                 .ExecuteSqlAsync(
                     $"EXEC Press.usp_LogScaleImportUpdateByBatchID @batchId = {batchId}",
                     cancellationToken)
                 .ConfigureAwait(false);
-
-            return true;
         }
         catch (Exception ex)
         {
             logger.LogError(
                 ex,
-                "Lotti: il ricalcolo del lotto {Batch} non e' riuscito. Le modifiche sono salvate, " +
-                "i valori di riepilogo restano quelli precedenti.",
+                "Lotti: il riallineamento dei log di pesatura del lotto {Batch} non e' riuscito. " +
+                "Le modifiche sono salvate.",
                 batchId);
-
-            return false;
         }
     }
-
-    /// <summary>
-    /// Azzera i tre campi del blocco. Con <paramref name="owner"/> valorizzato agisce solo sul
-    /// blocco di quell'utente, senza sullo sblocco forzato.
-    /// </summary>
 }

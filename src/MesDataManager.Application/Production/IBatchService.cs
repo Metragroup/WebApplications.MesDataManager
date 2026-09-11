@@ -92,17 +92,21 @@ public interface IBatchService
     /// sulle presse senza MES, rilascio del blocco.
     /// </para>
     /// <para>
-    /// <b>Dopo</b> il commit vengono richiamate <c>usp_Batch_Elab</c> e
-    /// <c>usp_LogScaleImportUpdateByBatchID</c>: la prima impiega circa 35 secondi per lotto, e
-    /// tenerla dentro la transazione bloccherebbe per quaranta secondi le tabelle su cui la
-    /// raccolta dati del MES scrive di continuo. Il salvataggio richiede quindi <b>circa quaranta
-    /// secondi</b>, come nel vecchio applicativo, e
-    /// <see cref="BatchSaveResult.Recalculated"/> dice se il ricalcolo e' riuscito.
+    /// Il salvataggio <b>non</b> ricalcola il lotto: lo rimette in coda mettendo
+    /// <c>IsBatchProcessed</c> a falso, e il ricalcolo lo fa il MES col suo lavoro pianificato,
+    /// che ogni cinque minuti esegue <c>usp_Batch_Elab</c> su tutti i lotti in coda. Fino ad
+    /// allora i valori di riepilogo — pesi, conteggi, tempi di ciclo — restano quelli di prima e
+    /// il lotto <b>non e' modificabile</b> (<see cref="BeginEditAsync"/>): sono le due cose da
+    /// dire a chi ha salvato. Il vecchio applicativo chiamava invece la procedura sul momento, e
+    /// il salvataggio durava quaranta secondi.
     /// </para>
     /// <para>
-    /// I valori di riepilogo — pesi, conteggi, tempi di ciclo — li ricalcola la procedura, non
-    /// questa applicazione: per questo il lotto si <b>rilegge</b> alla fine, e i valori giusti
-    /// sono quelli restituiti e non quelli che il chiamante aveva in memoria.
+    /// Dopo il commit resta una sola chiamata, <c>usp_LogScaleImportUpdateByBatchID</c>, che
+    /// costa 109 millisecondi: riallinea i log di pesatura, e il lavoro pianificato non la fa.
+    /// </para>
+    /// <para>
+    /// Il lotto si <b>rilegge</b> comunque alla fine: la fotografia restituita e' quella vera, e
+    /// porta l'attesa di elaborazione appena messa a database.
     /// </para>
     /// <para>
     /// Se nel frattempo il blocco e' passato a un altro — sblocco forzato di un amministratore, o
@@ -111,7 +115,7 @@ public interface IBatchService
     /// l'operatore sa di averle perse.
     /// </para>
     /// </summary>
-    Task<BatchSaveResult> SaveAsync(BatchEditModel edit, CancellationToken cancellationToken = default);
+    Task<BatchDetail> SaveAsync(BatchEditModel edit, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Segna o annulla la marcatura "da riconciliare" sui lotti indicati, e riferisce quali ha
@@ -132,7 +136,8 @@ public interface IBatchService
     /// <para>
     /// Controlla la matrice come il cambio matrice e verifica che il periodo non si sovrapponga
     /// a un altro lotto della stessa pressa. Il lotto nasce chiuso a pressa e a sega, con i
-    /// marcatori di apertura e chiusura, e viene ricalcolato da <c>usp_Batch_Elab</c>.
+    /// marcatori di apertura e chiusura, e <b>da elaborare</b>: lo prendera' il lavoro
+    /// pianificato del MES, come per il salvataggio (vedi <see cref="SaveAsync"/>).
     /// </para>
     /// </summary>
     Task<string> CreateAsync(NewBatchRequest request, CancellationToken cancellationToken = default);

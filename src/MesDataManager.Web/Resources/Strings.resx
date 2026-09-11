@@ -727,14 +727,20 @@
   <data name="Msg.BatchDowntimes" xml:space="preserve">
     <value>Macrofermi del lotto</value>
   </data>
+  <data name="Msg.BatchAwaitingElaboration" xml:space="preserve">
+    <value>In attesa di elaborazione</value>
+  </data>
+  <data name="Msg.BatchElaborationPending" xml:space="preserve">
+    <value>Il lotto è in coda di elaborazione: il MES ne ricalcola i valori di riepilogo entro cinque minuti. Fino ad allora i valori mostrati sono quelli precedenti e il lotto non è modificabile.</value>
+  </data>
   <data name="Msg.BatchNotClosed" xml:space="preserve">
     <value>Aperto</value>
   </data>
-  <data name="Msg.BatchProcessing" xml:space="preserve">
-    <value>Estrusione in corso</value>
-  </data>
   <data name="Msg.BatchProdOrders" xml:space="preserve">
     <value>Ordini di produzione</value>
+  </data>
+  <data name="Msg.BatchSavedElaborationQueued" xml:space="preserve">
+    <value>Modifiche salvate. Il MES rielabora il lotto entro cinque minuti: fino ad allora i valori di riepilogo restano quelli precedenti.</value>
   </data>
   <data name="Msg.BatchStateAny" xml:space="preserve">
     <value>Tutti</value>
@@ -1035,12 +1041,6 @@
   </data>
   <data name="Msg.RenumberBilletsTitle" xml:space="preserve">
     <value>Rinumera billette</value>
-  </data>
-  <data name="Msg.SavedWithoutRecalculation" xml:space="preserve">
-    <value>Modifiche salvate, ma il ricalcolo del lotto non è riuscito: i valori di riepilogo sono ancora quelli precedenti.</value>
-  </data>
-  <data name="Msg.SavingBatch" xml:space="preserve">
-    <value>Salvataggio in corso: il ricalcolo del lotto richiede circa quaranta secondi.</value>
   </data>
   <data name="Msg.SearchPlaceholder" xml:space="preserve">
     <value>Cerca…</value>

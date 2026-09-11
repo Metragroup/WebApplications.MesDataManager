@@ -163,108 +163,105 @@ public sealed partial class BatchService
 
         var batchId = request.BatchId;
 
-        await using var context = await contextFactory
-            .CreateDbContextAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        await using var transaction = context.Database.CurrentTransaction is null
-            ? await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)
-            : null;
-
-        // Sovrapposizione con altri lotti della stessa pressa: confronto completo fra intervalli.
-        // Il controllo del vecchio applicativo (IsBatchPeriodValid) guardava solo se un lotto
-        // esistente conteneva l'inizio o la fine del nuovo, e non vedeva il lotto nuovo che ne
-        // inghiotte uno esistente — lo stesso difetto gia' corretto sui fermi macchina.
-        var overlapping = await context.Batches
-            .AsNoTracking()
-            .Where(b => b.PressId == request.PressId)
-            .Where(b => b.StartTs < request.StopTs && b.StopTs > request.StartTs)
-            .Select(b => b.BatchId)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        if (overlapping.Count > 0)
-        {
-            throw ProductionException.BatchPeriodOverlap(overlapping);
-        }
-
-        var batch = new Batch
-        {
-            BatchId = batchId,
-            BatchStatusId = 0,
-            PressId = request.PressId,
-            DieId = die.DieId,
-            DieCode = die.DieCode,
-            DieNumber = die.DieNumber,
-            StartTs = request.StartTs,
-            StopTs = request.StopTs,
-            PressBatchClosingReasonId = request.ClosingReasonId,
-
-            // Un lotto inserito a mano nasce chiuso: non e' lavoro in corso, e' la ricostruzione
-            // di una produzione che la raccolta dati non ha registrato.
-            IsPressClosed = true,
-            IsSawClosed = true,
-            EditStatusId = "N",
-        };
-
-        context.Batches.Add(batch);
-
-        // I due marcatori delimitano il lotto e non sono billette: portano gli istanti degli
-        // estremi e nessuna quantita'.
-        context.BatchBillets.Add(Marker(batch, BatchBilletType.BatchStart, request.StartTs, null));
-        context.BatchBillets.Add(Marker(
-            batch,
-            BatchBilletType.BatchStop,
-            request.StopTs,
-            (byte)request.ClosingReasonId));
-
-        foreach (var planned in billets)
-        {
-            context.BatchBillets.Add(new BatchBillet
+        await InTransactionAsync(
+            async (context, ct) =>
             {
-                BatchId = batchId,
-                PressId = request.PressId,
-                DieId = die.DieId,
-                TypeId = BatchBilletType.Real,
-                BatchBilletRawId = -1,
-                BilletNo = planned.BilletNo,
-                StartTs = planned.StartTs,
-                StopTs = planned.StopTs,
-                SecCycle = planned.SecCycle,
-                MmBarSet = planned.MmBarSet,
-                MmBilletAct = planned.MmBilletAct,
-                KgSheared = planned.KgSheared,
-                KgExtruded = planned.KgExtruded,
-                Billet1CastingId = planned.CastingId,
-                Billet1AlloyId = planned.AlloyId,
-                Billet1Kg = planned.KgSheared,
-                ProdId = planned.ProdId,
-                EditStatusId = "N",
-            });
-        }
+                // Sovrapposizione con altri lotti della stessa pressa: confronto completo fra
+                // intervalli. Il controllo del vecchio applicativo (IsBatchPeriodValid) guardava
+                // solo se un lotto esistente conteneva l'inizio o la fine del nuovo, e non vedeva
+                // il lotto nuovo che ne inghiotte uno esistente — lo stesso difetto gia' corretto
+                // sui fermi macchina.
+                var overlapping = await context.Batches
+                    .AsNoTracking()
+                    .Where(b => b.PressId == request.PressId)
+                    .Where(b => b.StartTs < request.StopTs && b.StopTs > request.StartTs)
+                    .Select(b => b.BatchId)
+                    .ToListAsync(ct)
+                    .ConfigureAwait(false);
 
-        try
-        {
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (DbUpdateException ex)
-        {
-            logger.LogWarning(ex, "Lotti: creazione del lotto {Batch} non riuscita.", batchId);
-            throw TranslateSaveFailure(ex);
-        }
+                if (overlapping.Count > 0)
+                {
+                    throw ProductionException.BatchPeriodOverlap(overlapping);
+                }
 
-        if (transaction is not null)
-        {
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-        }
+                var batch = new Batch
+                {
+                    BatchId = batchId,
+                    BatchStatusId = 0,
+                    PressId = request.PressId,
+                    DieId = die.DieId,
+                    DieCode = die.DieCode,
+                    DieNumber = die.DieNumber,
+                    StartTs = request.StartTs,
+                    StopTs = request.StopTs,
+                    PressBatchClosingReasonId = request.ClosingReasonId,
+
+                    // Un lotto inserito a mano nasce chiuso: non e' lavoro in corso, e' la
+                    // ricostruzione di una produzione che la raccolta dati non ha registrato.
+                    IsPressClosed = true,
+                    IsSawClosed = true,
+
+                    // E nasce da elaborare: chiuso a pressa e a sega, e' esattamente cio' che il
+                    // lavoro pianificato del MES cerca ogni cinque minuti. Vale qui la stessa
+                    // scelta del salvataggio, vedi BatchService.Save.
+                    IsBatchProcessed = false,
+                    EditStatusId = "N",
+                };
+
+                context.Batches.Add(batch);
+
+                // I due marcatori delimitano il lotto e non sono billette: portano gli istanti
+                // degli estremi e nessuna quantita'.
+                context.BatchBillets.Add(Marker(batch, BatchBilletType.BatchStart, request.StartTs, null));
+                context.BatchBillets.Add(Marker(
+                    batch,
+                    BatchBilletType.BatchStop,
+                    request.StopTs,
+                    (byte)request.ClosingReasonId));
+
+                foreach (var planned in billets)
+                {
+                    context.BatchBillets.Add(new BatchBillet
+                    {
+                        BatchId = batchId,
+                        PressId = request.PressId,
+                        DieId = die.DieId,
+                        TypeId = BatchBilletType.Real,
+                        BatchBilletRawId = -1,
+                        BilletNo = planned.BilletNo,
+                        StartTs = planned.StartTs,
+                        StopTs = planned.StopTs,
+                        SecCycle = planned.SecCycle,
+                        MmBarSet = planned.MmBarSet,
+                        MmBilletAct = planned.MmBilletAct,
+                        KgSheared = planned.KgSheared,
+                        KgExtruded = planned.KgExtruded,
+                        Billet1CastingId = planned.CastingId,
+                        Billet1AlloyId = planned.AlloyId,
+                        Billet1Kg = planned.KgSheared,
+                        ProdId = planned.ProdId,
+                        EditStatusId = "N",
+                    });
+                }
+
+                try
+                {
+                    await context.SaveChangesAsync(ct).ConfigureAwait(false);
+                }
+                catch (DbUpdateException ex)
+                {
+                    logger.LogWarning(ex, "Lotti: creazione del lotto {Batch} non riuscita.", batchId);
+                    throw TranslateSaveFailure(ex);
+                }
+            },
+            cancellationToken)
+            .ConfigureAwait(false);
 
         logger.LogInformation(
             "Lotti: {User} ha creato il lotto {Batch} con {Billets} billette.",
             permissions.UserName,
             batchId,
             billets.Count);
-
-        await RecalculateAsync(batchId, cancellationToken).ConfigureAwait(false);
 
         return batchId;
     }
@@ -294,70 +291,64 @@ public sealed partial class BatchService
             throw ProductionException.Forbidden();
         }
 
-        await using var context = await contextFactory
-            .CreateDbContextAsync(cancellationToken)
+        await InTransactionAsync(
+            async (context, ct) =>
+            {
+                var batch = await context.Batches
+                    .SingleOrDefaultAsync(b => b.BatchId == batchId, ct)
+                    .ConfigureAwait(false)
+                    ?? throw ProductionException.NotFound();
+
+                // Un lotto gia' passato all'ERP non si elimina: la' e' diventato un documento, e
+                // cancellarlo qui lascerebbe i due sistemi a raccontare cose diverse. Il vecchio
+                // applicativo lo permetteva.
+                if (batch.IsErpImported)
+                {
+                    throw ProductionException.BatchAlreadyReconciled();
+                }
+
+                if (batch.IsLock && batch.LockUsr != LockOwner(permissions))
+                {
+                    throw ProductionException.BatchLocked(batch.LockUsr, batch.LockTs);
+                }
+
+                // La cascata e' a mano: a database non ci sono ON DELETE CASCADE, e le presenze
+                // degli operatori non erano nemmeno modellate nel vecchio applicativo —
+                // restavano orfane.
+                await context.BatchBilletProdOrders
+                    .Where(o => o.BatchId == batchId)
+                    .ExecuteDeleteAsync(ct)
+                    .ConfigureAwait(false);
+
+                await context.BatchProdOrders
+                    .Where(o => o.BatchId == batchId)
+                    .ExecuteDeleteAsync(ct)
+                    .ConfigureAwait(false);
+
+                await context.BatchBarQties
+                    .Where(a => a.BatchId == batchId)
+                    .ExecuteDeleteAsync(ct)
+                    .ConfigureAwait(false);
+
+                await context.BatchWorkers
+                    .Where(w => w.BatchId == batchId)
+                    .ExecuteDeleteAsync(ct)
+                    .ConfigureAwait(false);
+
+                await context.BatchBillets
+                    .Where(b => b.BatchId == batchId)
+                    .ExecuteDeleteAsync(ct)
+                    .ConfigureAwait(false);
+
+                await context.Batches
+                    .Where(b => b.BatchId == batchId)
+                    .ExecuteDeleteAsync(ct)
+                    .ConfigureAwait(false);
+
+                await NotifyErpDeletionAsync(context, batchId, ct).ConfigureAwait(false);
+            },
+            cancellationToken)
             .ConfigureAwait(false);
-
-        await using var transaction = context.Database.CurrentTransaction is null
-            ? await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)
-            : null;
-
-        var batch = await context.Batches
-            .SingleOrDefaultAsync(b => b.BatchId == batchId, cancellationToken)
-            .ConfigureAwait(false)
-            ?? throw ProductionException.NotFound();
-
-        // Un lotto gia' passato all'ERP non si elimina: la' e' diventato un documento, e
-        // cancellarlo qui lascerebbe i due sistemi a raccontare cose diverse. Il vecchio
-        // applicativo lo permetteva.
-        if (batch.IsErpImported)
-        {
-            throw ProductionException.BatchAlreadyReconciled();
-        }
-
-        if (batch.IsLock && batch.LockUsr != LockOwner(permissions))
-        {
-            throw ProductionException.BatchLocked(batch.LockUsr, batch.LockTs);
-        }
-
-        // La cascata e' a mano: a database non ci sono ON DELETE CASCADE, e le presenze degli
-        // operatori non erano nemmeno modellate nel vecchio applicativo — restavano orfane.
-        await context.BatchBilletProdOrders
-            .Where(o => o.BatchId == batchId)
-            .ExecuteDeleteAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        await context.BatchProdOrders
-            .Where(o => o.BatchId == batchId)
-            .ExecuteDeleteAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        await context.BatchBarQties
-            .Where(a => a.BatchId == batchId)
-            .ExecuteDeleteAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        await context.BatchWorkers
-            .Where(w => w.BatchId == batchId)
-            .ExecuteDeleteAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        await context.BatchBillets
-            .Where(b => b.BatchId == batchId)
-            .ExecuteDeleteAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        await context.Batches
-            .Where(b => b.BatchId == batchId)
-            .ExecuteDeleteAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        await NotifyErpDeletionAsync(context, batchId, cancellationToken).ConfigureAwait(false);
-
-        if (transaction is not null)
-        {
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-        }
 
         logger.LogWarning(
             "Lotti: {User} ha eliminato il lotto {Batch}.",
@@ -508,13 +499,4 @@ public sealed partial class BatchService
          message.Contains("UNIQUE constraint", StringComparison.OrdinalIgnoreCase))
             ? ProductionException.BatchAlreadyExists()
             : ProductionException.SaveFailed(exception);
-
-    /// <summary>
-    /// Testata: matrice e causale di chiusura.
-    /// <para>
-    /// La matrice si propaga a <b>tutte</b> le billette, marcatori compresi — il vecchio
-    /// applicativo li lasciava indietro perche' passava da <c>GetBillets</c>, che filtra i tipi 0
-    /// e 2. La causale si scrive anche sul marcatore di chiusura, che ne porta una copia.
-    /// </para>
-    /// </summary>
 }

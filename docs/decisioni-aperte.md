@@ -221,10 +221,12 @@ transazione sola.
 
 Due conseguenze che valgono anche per i moduli successivi (storico ceste, storico carico):
 
-- **le procedure lunghe del MES stanno fuori dalla transazione.** `usp_Batch_Elab` impiega ~35
-  secondi per lotto: dentro la transazione avrebbe tenuto i lock su tabelle su cui la raccolta
-  dati scrive di continuo. Si commetta prima e si richiami dopo, dichiarando all'operatore che
-  l'operazione dura;
+- **le procedure lunghe del MES non si chiamano: si accoda il lotto.** `usp_Batch_Elab` impiega
+  ~35 secondi per lotto, e un lavoro pianificato la esegue gia' ogni cinque minuti sui lotti con
+  `IsPressClosed = 1` e `IsBatchProcessed = 0`. Rimettere quel flag a zero dentro la transazione
+  costa niente e ottiene lo stesso risultato; prima di chiamare una procedura del MES conviene
+  quindi guardare se esiste gia' un lavoro che la esegue (rivisto l'11 settembre 2026, vedi
+  `piano-modifica-lotto.md` 5.7);
 - **il timeout predefinito dei comandi (30 secondi) non basta per le procedure del MES**, e
   nessun test su SQLite lo rivela. Chi richiama una procedura deve alzarlo di proposito.
 

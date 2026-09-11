@@ -44,7 +44,8 @@ Funzioni gestite dalla pagina *ProductionData*:
   esistente.
 - Alla creazione: `IsPressClosed` e `IsSawClosed` a `true`, `EditStatusID = 'N'`, marcatori di
   apertura e chiusura (`BatchBillet.TypeID` 0 e 2), N billette con tempo e kg divisi in parti
-  uguali; poi `usp_Batch_Elab`.
+  uguali. Il lotto nasce **da elaborare** (`IsBatchProcessed = 0`): lo ricalcola il lavoro
+  pianificato del MES entro dieci minuti, come per il salvataggio.
 - La **matrice viene validata** come nel cambio matrice (esistenza e stato): il WinForms
   controllava solo che il campo non fosse vuoto.
 - Il controllo di **sovrapposizione del periodo** con gli altri lotti della stessa pressa è
@@ -260,16 +261,22 @@ Senza, nel web i lock orfani sarebbero la norma e non l'eccezione.
 
 **Precondizioni.** Si entra in modifica solo se:
 
-- `IsBatchProcessed = true` — altrimenti messaggio "elaborazione in corso" e nessun lock;
+- `IsBatchProcessed = true` — altrimenti la scheda mostra "in attesa di elaborazione", il comando
+  di modifica è spento e il servizio rifiuta comunque il lock. Ci finisce anche ogni lotto appena
+  salvato da qui, finché il MES non lo rielabora (vedi sotto); nell'elenco lo stato non compare,
+  di proposito;
 - `IsErpImported = false`;
 - l'utente ha la scrittura sulla produzione e il lotto non è bloccato da altri.
 
 **Le modifiche si accumulano e si salvano in blocco.** Le modifiche fatte in modalità modifica
 restano in sospeso fino al salvataggio, che le scrive tutte in **una transazione**: è il
-comportamento del WinForms ed è ciò che rende possibile annullare. Dopo il salvataggio vengono
-eseguiti `usp_Batch_Elab` e `usp_LogScaleImportUpdateByBatchID`, e la scheda si **ricarica**: i
-valori di riepilogo (pesi, conteggi, tempi di ciclo) li ricalcola lo SCADA, quindi i valori giusti
-sono quelli riletti a valle della procedura.
+comportamento del WinForms ed è ciò che rende possibile annullare. Il salvataggio **non ricalcola
+il lotto**: lo rimette in coda (`IsBatchProcessed = 0`) e il MES lo rielabora col suo lavoro
+pianificato entro cinque minuti, mentre l'applicazione richiama solo
+`usp_LogScaleImportUpdateByBatchID` (109 ms), che il lavoro pianificato non fa. La scheda si
+**ricarica** comunque, e dichiara l'attesa: i valori di riepilogo (pesi, conteggi, tempi di ciclo)
+restano quelli di prima fino al passaggio dello SCADA, e fino ad allora il lotto non è
+modificabile.
 
 Nella modalità modifica l'utente potrà modificare:
 

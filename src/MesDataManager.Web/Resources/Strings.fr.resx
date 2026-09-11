@@ -727,14 +727,20 @@
   <data name="Msg.BatchDowntimes" xml:space="preserve">
     <value>Arrêts du lot</value>
   </data>
+  <data name="Msg.BatchAwaitingElaboration" xml:space="preserve">
+    <value>En attente de traitement</value>
+  </data>
+  <data name="Msg.BatchElaborationPending" xml:space="preserve">
+    <value>Le lot est en file d'attente de traitement : le MES recalcule ses valeurs de synthèse sous dix minutes. Jusque-là, les valeurs affichées sont les précédentes et le lot n'est pas modifiable.</value>
+  </data>
   <data name="Msg.BatchNotClosed" xml:space="preserve">
     <value>Ouvert</value>
   </data>
-  <data name="Msg.BatchProcessing" xml:space="preserve">
-    <value>Extrusion en cours</value>
-  </data>
   <data name="Msg.BatchProdOrders" xml:space="preserve">
     <value>Ordres de fabrication</value>
+  </data>
+  <data name="Msg.BatchSavedElaborationQueued" xml:space="preserve">
+    <value>Modifications enregistrées. Le MES retraitera le lot sous cinq minutes : jusque-là, les valeurs de synthèse restent les précédentes.</value>
   </data>
   <data name="Msg.BatchStateAny" xml:space="preserve">
     <value>Tous</value>
@@ -1035,12 +1041,6 @@
   </data>
   <data name="Msg.RenumberBilletsTitle" xml:space="preserve">
     <value>Renuméroter les billettes</value>
-  </data>
-  <data name="Msg.SavedWithoutRecalculation" xml:space="preserve">
-    <value>Modifications enregistrées, mais le recalcul du lot a échoué : les valeurs de synthèse sont encore les précédentes.</value>
-  </data>
-  <data name="Msg.SavingBatch" xml:space="preserve">
-    <value>Enregistrement : le recalcul du lot prend environ quarante secondes.</value>
   </data>
   <data name="Msg.SearchPlaceholder" xml:space="preserve">
     <value>Rechercher…</value>

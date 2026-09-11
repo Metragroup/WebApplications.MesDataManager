@@ -294,12 +294,15 @@ dismissione del circuito, e **scade dopo 60 minuti** — perche' nel web la sess
 silenzio e il blocco orfano sarebbe la norma. La scadenza vale per gli altri: chi possiede il
 blocco continua a salvare anche oltre l'ora, se nessuno gliel'ha portato via.
 
-**Le procedure lunghe del MES stanno fuori dalla transazione.** `usp_Batch_Elab` impiega ~35
-secondi per lotto (misurato): dentro la transazione terrebbe i lock su tabelle su cui la raccolta
-dati scrive di continuo. Si commette prima e si richiama dopo, con un timeout esplicito, e
-l'esito del salvataggio distingue "salvato" da "salvato ma non ricalcolato". E' anche il motivo
-per cui i valori derivati — pesi, conteggi, tempi di ciclo — non si calcolano qui: si rileggono
-dopo la procedura.
+**Le procedure lunghe del MES non si chiamano affatto: si mette il lotto nella loro coda.**
+`usp_Batch_Elab` impiega ~35 secondi per lotto (misurato), e sul MES gira gia' un lavoro
+pianificato che ogni cinque minuti la esegue su tutti i lotti con `IsPressClosed = 1` e
+`IsBatchProcessed = 0`. Il salvataggio si limita quindi a rimettere quel flag a zero, dentro la
+transazione, e finisce in mezzo secondo; il lotto resta non modificabile finche' il MES non ha
+finito, che e' la stessa precondizione di sempre. Deciso l'11 settembre 2026, al posto della
+chiamata sul momento che faceva durare quaranta secondi ogni salvataggio. E' anche il motivo per
+cui i valori derivati — pesi, conteggi, tempi di ciclo — non si calcolano qui: appartengono alla
+procedura, e fino al suo passaggio restano quelli di prima.
 
 ---
 

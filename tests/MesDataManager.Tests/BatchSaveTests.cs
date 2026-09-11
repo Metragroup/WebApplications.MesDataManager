@@ -304,6 +304,44 @@ public sealed class BatchSaveTests : IDisposable
         }
     }
 
+    // ------------------------------------------------------------------ coda di elaborazione
+
+    [Fact]
+    public async Task Il_salvataggio_rimette_il_lotto_in_coda_di_elaborazione()
+    {
+        // I valori di riepilogo li ricalcola usp_Batch_Elab, che costa 35 secondi per lotto e
+        // gira gia' ogni cinque minuti sul MES su tutti i lotti con IsBatchProcessed = 0. Il
+        // salvataggio quindi non la chiama: rimette il lotto in quella coda, e l'operatore non
+        // aspetta quaranta secondi.
+        var (service, edit) = await Editing();
+        edit.ChangeClosingReason(9);
+
+        var detail = await service.SaveAsync(edit);
+
+        await using var context = _harness.CreateContext();
+        Assert.False(context.Batches.Single().IsBatchProcessed);
+
+        // E la fotografia restituita lo dice: e' quella che la scheda mostra subito dopo.
+        Assert.False(detail.IsBatchProcessed);
+    }
+
+    [Fact]
+    public async Task Un_lotto_in_coda_di_elaborazione_non_si_riprende_in_modifica()
+    {
+        // Conseguenza voluta della scelta di sopra: finche' il MES non ha ricalcolato, i valori
+        // a schermo non sono quelli veri e modificarli significherebbe lavorare su numeri che
+        // stanno per cambiare.
+        var (service, edit) = await Editing();
+        edit.ChangeClosingReason(9);
+        await service.SaveAsync(edit);
+
+        var errore = await Assert.ThrowsAsync<ProductionException>(
+            () => _harness.BatchServiceFor(Anna).BeginEditAsync(Lotto));
+
+        Assert.Equal(ProductionErrorKind.Conflict, errore.Kind);
+        Assert.EndsWith("BatchProcessing", errore.MessageKey, StringComparison.Ordinal);
+    }
+
     // ------------------------------------------------------------------ blocco e permessi
 
     [Fact]
@@ -460,6 +498,18 @@ public sealed class BatchSaveTests : IDisposable
                 Billetta(BatchBilletType.Real, 1, Inizio, Inizio.AddMinutes(30)),
                 Billetta(BatchBilletType.Real, 2, Inizio.AddMinutes(30), Fine),
                 Billetta(BatchBilletType.BatchStop, 0, Fine, Fine));
+        }
+
+        // Il lavoro pianificato del MES, che qui non c'e'. Dopo un salvataggio il lotto resta in
+        // coda di elaborazione e non si potrebbe riprendere in modifica: e' il comportamento
+        // voluto (vedi Il_salvataggio_rimette_il_lotto_in_coda_di_elaborazione), e a database lo
+        // scioglie usp_Batch_Elab entro cinque minuti. Le prove che salvano due volte lo fanno a
+        // mano, altrimenti verificherebbero il lavoro pianificato invece del salvataggio.
+        await using (var context = _harness.CreateContext())
+        {
+            var batch = context.Batches.Single(b => b.BatchId == Lotto);
+            batch.IsBatchProcessed = true;
+            await context.SaveChangesAsync();
         }
 
         var service = _harness.BatchServiceFor(Anna);

@@ -39,8 +39,9 @@
         {
             @if (!head.IsBatchProcessed)
             {
-                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">
-                    @L["Msg.BatchProcessing"]
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
+                         Icon="@Icons.Material.Outlined.HourglassTop">
+                    @L["Msg.BatchAwaitingElaboration"]
                 </MudChip>
             }
             @if (_editing)
@@ -89,10 +90,16 @@
                 }
                 else if (_permissions.CanEditProduction)
                 {
+                    @* Un lotto in coda di elaborazione non si prende in modifica: il MES sta per
+                       riscriverne i valori di riepilogo, e modificarlo nel frattempo significa
+                       lavorare su numeri che stanno per cambiare. Il servizio lo rifiuta comunque;
+                       qui il comando e' spento con il motivo scritto sopra, perche' un pulsante
+                       che risponde con un errore e' peggio di un pulsante spento. *@
                     <MudButton StartIcon="@Icons.Material.Outlined.Edit"
                                Variant="Variant.Filled"
                                Color="Color.Primary"
-                               Disabled="_busy"
+                               Disabled="@(_busy || !head.IsBatchProcessed)"
+                               title="@(head.IsBatchProcessed ? null : L["Error.BatchProcessing"])"
                                OnClick="BeginEditAsync">
                         @L["Action.Edit"]
                     </MudButton>
@@ -125,6 +132,16 @@
     }
     else
     {
+        @* Il lotto in coda di elaborazione si dice per esteso, e solo qui: nell'elenco sarebbe
+           rumore su ogni riga, mentre chi apre la scheda ha bisogno di sapere due cose — che i
+           valori a schermo stanno per cambiare, e perche' il comando di modifica e' spento. *@
+        @if (!_detail.IsBatchProcessed)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                @L["Msg.BatchElaborationPending"]
+            </MudAlert>
+        }
+
         <MudPaper Elevation="0" Class="mes-card">
             <MudGrid Spacing="2">
                 @Field(L["Field.PressId"], _detail.PressId)
@@ -587,8 +604,13 @@
 
     /// <summary>
     /// Salva le modifiche in sospeso. Dopo il salvataggio la scheda torna in lettura e mostra i
-    /// valori <b>riletti</b>: pesi, conteggi e tempi di ciclo li ha appena ricalcolati la
-    /// procedura del MES, quindi quelli che stavano in memoria non valgono piu'.
+    /// valori <b>riletti</b>: il lotto e' in coda di elaborazione, e cio' che sta in memoria non
+    /// racconta piu' il suo stato.
+    /// <para>
+    /// I valori di riepilogo — pesi, conteggi, tempi di ciclo — restano pero' quelli di prima
+    /// finche' il MES non rielabora il lotto, entro cinque minuti: va detto, altrimenti chi ha
+    /// appena allungato una billetta non ritrova i kg cambiati e pensa di aver perso il lavoro.
+    /// </para>
     /// </summary>
     private async Task SaveAsync()
     {
@@ -599,15 +621,9 @@
 
         _busy = true;
 
-        // Il salvataggio dura circa quaranta secondi, e quasi tutti sono il ricalcolo del lotto
-        // che fa il MES: va detto prima, altrimenti sembra che la pagina si sia piantata.
-        Snackbar.Add(L["Msg.SavingBatch"], Severity.Info);
-
         try
         {
-            var result = await Batches.SaveAsync(edit);
-
-            _detail = result.Detail;
+            _detail = await Batches.SaveAsync(edit);
             _editing = false;
             _edit = null;
 
@@ -618,11 +634,9 @@
                 _downtimes = await Downtimes.GetForBatchAsync(_detail.PressId, from, to);
             }
 
-            // Salvato e ricalcolato sono due cose diverse: se il ricalcolo non e' riuscito i
-            // numeri a schermo non corrispondono a cio' che si e' appena scritto.
-            Snackbar.Add(
-                result.Recalculated ? L["Msg.RecordSaved"] : L["Msg.SavedWithoutRecalculation"],
-                result.Recalculated ? Severity.Success : Severity.Warning);
+            // Salvato e ricalcolato sono due cose diverse, e adesso avvengono in due momenti
+            // diversi: i numeri a schermo sono ancora quelli di prima finche' il MES non passa.
+            Snackbar.Add(L["Msg.BatchSavedElaborationQueued"], Severity.Success);
         }
         catch (ProductionException ex)
         {

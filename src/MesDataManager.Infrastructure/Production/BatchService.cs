@@ -36,14 +36,6 @@ public sealed partial class BatchService(
     /// </summary>
     private const int LockUserMaxLength = 50;
 
-    /// <summary>
-    /// Quanto si concede alle procedure di ricalcolo del MES. Il valore predefinito
-    /// dell'applicazione e' 30 secondi e non basta: <c>usp_Batch_Elab</c> ne impiega circa 35 per
-    /// lotto (vedi <see cref="RecalculateAsync"/>). Tre minuti lasciano margine per un lotto con
-    /// molte billette senza restare appesi in eterno.
-    /// </summary>
-    private static readonly TimeSpan RecalculationTimeout = TimeSpan.FromMinutes(3);
-
 
     public async Task<BatchPage> GetPageAsync(
         BatchListQuery query,

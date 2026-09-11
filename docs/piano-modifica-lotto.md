@@ -56,6 +56,9 @@ Entrambe quelle del vecchio applicativo (`frmBatchDetail.btnEdit_Click`, `SetPer
 
 piu' `CanEditProduction` e il lock libero (o proprio).
 
+Dall'11 settembre 2026 la prima precondizione si incontra anche subito dopo un salvataggio, che
+mette il lotto in coda di elaborazione: vedi 5.7.
+
 ### 1.5. Perimetro
 
 Dentro: tutto quello elencato in `dettaglio-lotto.md`, **piu'** le funzioni della voce 3 della
@@ -431,6 +434,9 @@ va detto invece che nascosto.
 Il salvataggio di un lotto dura di conseguenza **circa quaranta secondi**, misurati: 37,9s su un
 lotto da 13 billette. La scheda lo dichiara prima di cominciare.
 
+> **Superato l'11 settembre 2026.** La procedura non si chiama piu': il salvataggio accoda il
+> lotto e il lavoro pianificato del MES la esegue per conto suo. Vedi 5.7.
+
 ### 5.2. Lo stato d'uso delle matrici: l'avviso sarebbe stato rumore
 
 Sui lotti dei sei mesi precedenti: 215 su matrici disponibili, **94 su matrici senza riga di
@@ -480,3 +486,63 @@ B2 di `decisioni-aperte.md`, invariata) e la prova di accensione esercita solo i
 rendering, non il circuito interattivo. Modifica, salvataggio e comandi vanno provati a mano da
 browser prima dell'esercizio — i percorsi di scrittura sono verificati sotto, al livello del
 servizio, ma non attraverso i controlli che li richiamano.
+
+### 5.6. La sonda non aveva la strategia di ripetizione, e il salvataggio falliva sempre
+
+L'11 settembre 2026 ogni salvataggio di lotto in esercizio moriva con
+`InvalidOperationException`: *"the configured execution strategy 'SqlServerRetryingExecutionStrategy'
+does not support user-initiated transactions"*. La connessione dell'applicazione e' configurata
+con `EnableRetryOnFailure` (`DependencyInjection`), e quella strategia **rifiuta le transazioni
+aperte a mano**: le tre `BeginTransaction` del servizio lotti — salvataggio, creazione,
+eliminazione — fallivano alla prima query dentro la transazione, prima ancora di scrivere niente.
+
+Perche' non si era visto: i test girano su SQLite, che non ha strategia di ripetizione, e la
+sonda sul database vero apriva **lei** la transazione, quindi il codice prendeva il ramo
+"transazione gia' presente" e non arrivava mai a `BeginTransaction`. Il difetto stava esattamente
+nel ramo che ne' i test ne' la sonda percorrevano: quello dell'esercizio.
+
+La correzione e' `BatchService.InTransactionAsync`, che affida l'unita' — contesto compreso —
+alla strategia ottenuta da `CreateExecutionStrategy()`. Il contesto nasce **dentro** l'unita':
+un secondo tentativo deve ripartire da dati riletti e da un tracciamento pulito.
+
+**Per le prossime sonde:** il ramo con transazione esterna va configurato **senza**
+`EnableRetryOnFailure`, altrimenti fallisce per un motivo che in esercizio non esiste; e il ramo
+di esercizio — l'applicazione che apre da se' la propria transazione — va esercitato lo stesso,
+con una chiamata che entri in transazione e si fermi su una precondizione (`DeleteAsync` su un
+lotto inesistente, `SaveAsync` su un lotto bloccato da altri): passa dal codice vero e non scrive
+niente. Cosi' e' stato verificato il 11 settembre 2026.
+
+### 5.7. Il ricalcolo non si chiama, si accoda: il salvataggio passa da 40 secondi a mezzo secondo
+
+Sul MES gira gia' un lavoro pianificato di SQL Server Agent — *"MES40_RDP - Press.usp_Batch_Elab"*,
+ogni **cinque minuti** — che esegue `EXEC Press.usp_Batch_Elab @BatchID = ''`, cioe' la procedura
+su **tutti** i lotti con `IsPressClosed = 1` e `IsBatchProcessed = 0`. Chiamare la stessa
+procedura sul momento, facendo aspettare l'operatore quaranta secondi, era quindi lavoro doppio.
+
+Dall'11 settembre 2026 il salvataggio **rimette il lotto in coda** (`IsBatchProcessed = 0`, dentro
+la transazione, accanto al rilascio del blocco) e non chiama piu' niente. Stessa cosa alla
+creazione di un lotto, che nasce chiuso a pressa e a sega ed e' percio' gia' nella forma che il
+lavoro pianificato cerca. Resta una sola chiamata dopo il commit,
+`usp_LogScaleImportUpdateByBatchID`, perche' il lavoro pianificato non la fa e costa **109 ms**.
+
+**Misurato** con la sonda su `MES40_RDP_TEST` l'11 settembre 2026, dentro una transazione
+annullata: presa in modifica, cambio della causale e salvataggio completo in **463 ms** — erano
+37,9s. Dopo il salvataggio `IsBatchProcessed` e' a zero, il blocco e' rilasciato, e la ripresa in
+modifica dello stesso lotto viene rifiutata con `Error.BatchProcessing`.
+
+**Le due conseguenze si mostrano all'operatore**, e solo nella scheda — nell'elenco sarebbero
+rumore su ogni riga:
+
+- un lotto in coda porta in testata il segno "In attesa di elaborazione" e un avviso che dice
+  cosa aspettare; il comando **Modifica e' spento**, col motivo nel suggerimento;
+- il messaggio di salvataggio dichiara che i valori di riepilogo restano quelli precedenti finche'
+  il MES non passa. Chi ha appena allungato una billetta non ritrova i kg cambiati: senza quella
+  frase penserebbe di aver perso il lavoro.
+
+**Il limite da conoscere.** Il contrassegno finale della procedura (`IsBatchProcessed = 1`) vuole
+`IsPressClosed = 1` **e** `IsSawClosed = 1`. Un lotto a sega aperta viene elaborato ma non
+ricontrassegnato subito: la procedura prova prima a chiudergli la sega — e lo fa d'ufficio quando
+`EditStatusID = 'N'`, che e' il caso dei lotti toccati da questa applicazione — ma se non ci
+riesce il lotto resta in coda, e quindi non modificabile, fino a che la sega non si chiude. Sul
+database di test sono 2 lotti su 55 fra quelli pendenti. Se la cosa dovesse dare fastidio, la
+strada e' la chiusura forzata gia' presente nell'elenco, non il ritorno alla chiamata diretta.

@@ -169,6 +169,11 @@ public sealed class BatchCommandTests : IDisposable
         Assert.True(batch.IsPressClosed);
         Assert.True(batch.IsSawClosed);
         Assert.Equal("N", batch.EditStatusId);
+
+        // E nasce da elaborare: chiuso a pressa e a sega con IsBatchProcessed a zero e' quello
+        // che il lavoro pianificato del MES cerca ogni cinque minuti. L'applicazione non chiama
+        // piu' usp_Batch_Elab, quindi questo flag e' l'unica cosa che mette il lotto in coda.
+        Assert.False(batch.IsBatchProcessed);
         Assert.Equal("R22225/1", batch.DieId);
         Assert.Equal("R22225", batch.DieCode);
         Assert.Equal((short)1, batch.DieNumber);

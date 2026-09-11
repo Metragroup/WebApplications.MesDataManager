@@ -186,13 +186,3 @@ public sealed record BatchBilletRow(
     string? ProdId,
     string? EditStatusId);
 
-/// <summary>
-/// Esito del salvataggio di un lotto.
-/// <para>
-/// <see cref="Recalculated"/> distingue due situazioni che non vanno confuse: le modifiche sono
-/// salvate in entrambi i casi, ma se il ricalcolo del MES non e' riuscito i valori di riepilogo
-/// — pesi, conteggi, tempi di ciclo — sono ancora quelli di prima. Va detto a chi ha salvato:
-/// vedrebbe numeri che non corrispondono a cio' che ha appena scritto.
-/// </para>
-/// </summary>
-public sealed record BatchSaveResult(BatchDetail Detail, bool Recalculated);
