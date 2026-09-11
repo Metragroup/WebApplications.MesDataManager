@@ -93,10 +93,27 @@ vuoti", come rete di sicurezza: quella rete nascondeva il problema invece di seg
 JSON: arriva dal servizio, nel campo `diagnostics.message` della risposta, e va in `UsrDiagMsg`;
 la risposta intera va in `UsrDiagJson`.
 
+### L'esito corrente, con tre produttori
+
 Dove serve "lo stato della diagnostica" — l'elenco dei dati di produzione, la marcatura per la
-riconciliazione, l'effetto sulle presse senza MES — vale **l'esito corrente**: quello dell'utente
-se la diagnostica è stata rieseguita da qui, altrimenti quello del servizio. Non è un campo, è
-una lettura dei due.
+riconciliazione, l'effetto sulle presse senza MES — vale **l'esito corrente**, che non è un campo
+ma una lettura in quest'ordine:
+
+1. `DiagnosticsStatus`, le vecchie colonne, finché il **vecchio applicativo è in servizio**: è lui
+   a scriverle, ed è lui a dire come sta il lotto;
+2. `UsrDiagStatus`, se la diagnostica è stata rieseguita da qui;
+3. `SvcDiagStatus`, l'esito del servizio.
+
+È la stessa precedenza delle funzioni `EF.ufn_BatchByLength` e `EF.ufn_BatchByLengthShift`
+(`COALESCE(B.DiagnosticsStatus, B.UsrDiagStatus, B.SvcDiagStatus)`, allineate l'11 settembre
+2026): l'elenco dati di produzione legge dalla tabella in una modalità e dalla funzione
+nell'altra, e due ordini diversi farebbero dire alle due modalità cose diverse sullo stesso lotto.
+
+**Conseguenza da conoscere.** Sul database di produzione 273.899 lotti hanno già un esito nella
+vecchia colonna: su quelli, una diagnostica rieseguita da qui **non cambia** ciò che gli elenchi
+mostrano, finché quella colonna esiste. Si vede nella scheda, che tiene i tre produttori
+distinti e affiancati. Quando il vecchio applicativo uscirà di servizio, va tolto il primo dei
+tre — qui e nelle due funzioni.
 
 ### Servizio
 

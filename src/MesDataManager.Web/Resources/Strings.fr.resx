@@ -919,6 +919,9 @@
   <data name="Msg.IsActiveLockedHint" xml:space="preserve">
     <value>L'indicateur "Actif" n'est disponible que pour les entrées activées au niveau master.</value>
   </data>
+  <data name="Msg.LegacyDiagnostics" xml:space="preserve">
+    <value>Diagnostic de l'ancienne application</value>
+  </data>
   <data name="Msg.LockExpiresIn" xml:space="preserve">
     <value>Le verrou expire après {0} minutes d'inactivité.</value>
   </data>

@@ -378,11 +378,17 @@ public sealed class MesDbContext(DbContextOptions<MesDbContext> options) : DbCon
             e.Property(x => x.ItemMeterWeightTest).HasColumnName("ItemMeterWeight_Test").HasPrecision(15, 5);
             e.Property(x => x.ItemMeterWeight).HasPrecision(15, 5);
             e.Property(x => x.DieStatusId).HasColumnName("DieStatusID").HasColumnType("char(1)");
-            // Diagnostica, due gruppi di quattro campi (rinominati l'11 settembre 2026): SvcDiag*
-            // sono del servizio e l'applicazione non li scrive mai, UsrDiag* sono le esecuzioni
-            // chieste da qui. Vedi Batch.SvcDiagStatus per il perche' della separazione.
+            // Diagnostica, tre produttori. SvcDiag* e UsrDiag* sono i due gruppi rinominati l'11
+            // settembre 2026: i primi del servizio, i secondi delle esecuzioni chieste da qui, e
+            // l'applicazione scrive solo i secondi (vedi Batch.SvcDiagStatus).
             //
-            // "Lo stato della diagnostica" e' quindi una lettura dei due, non una colonna.
+            // Le colonne Diagnostics* sono del vecchio applicativo, che e' ancora in servizio: si
+            // leggono e non si scrivono mai. Restano mappate perche' l'esito che vale le comprende.
+            e.Property(x => x.LegacyDiagStatus).HasColumnName("DiagnosticsStatus").HasColumnType("char(3)");
+            e.Property(x => x.LegacyDiagTs).HasColumnName("DiagnosticsTs");
+            e.Property(x => x.LegacyDiagMsg).HasColumnName("DiagnosticsMsg").IsUnicode(false);
+
+            // "Lo stato della diagnostica" e' quindi una lettura dei tre, non una colonna.
             e.Ignore(x => x.CurrentDiagStatus);
             e.Property(x => x.SvcDiagStatus).HasColumnType("char(3)");
             e.Property(x => x.UsrDiagStatus).HasColumnType("char(3)");

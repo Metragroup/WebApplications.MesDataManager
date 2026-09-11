@@ -112,12 +112,32 @@ public sealed class Batch
     public string? UsrDiagJson { get; set; }
 
     /// <summary>
-    /// L'esito che vale adesso: quello dell'utente se la diagnostica e' stata rieseguita da questa
-    /// applicazione, altrimenti quello del servizio. Non e' una colonna — i due gruppi non si
-    /// sovrascrivono a vicenda — ed e' esclusa dalla mappatura.
+    /// Esito della diagnostica del <b>vecchio applicativo</b> (colonna <c>DiagnosticsStatus</c>),
+    /// che continua a girare e a scrivere qui.
+    /// <para>
+    /// Questa applicazione la legge e non la scrive mai: e' il dato di un altro produttore. Le
+    /// tre colonne restano a database finche' il vecchio applicativo e' in servizio.
+    /// </para>
     /// </summary>
-    public string? CurrentDiagStatus =>
-        string.IsNullOrWhiteSpace(UsrDiagStatus) ? SvcDiagStatus : UsrDiagStatus;
+    public string? LegacyDiagStatus { get; set; }
+
+    public DateTime? LegacyDiagTs { get; set; }
+
+    /// <summary>Referto del vecchio applicativo: testo, non JSON.</summary>
+    public string? LegacyDiagMsg { get; set; }
+
+    /// <summary>
+    /// L'esito che vale adesso. Non e' una colonna: e' la lettura dei tre produttori, nello stesso
+    /// ordine della funzione <c>EF.ufn_BatchByLengthShift</c> — <b>prima il vecchio</b>
+    /// applicativo finche' esiste, poi l'utente, poi il servizio.
+    /// <para>
+    /// L'ordine e' una decisione di transizione, non una gerarchia di qualita': finche' il vecchio
+    /// applicativo e' in servizio, e' lui a dire come sta il lotto. Ne discende che su un lotto
+    /// gia' diagnosticato da quello, una riesecuzione fatta da qui non cambia il valore che gli
+    /// elenchi mostrano — si vede nella scheda, che tiene i produttori distinti.
+    /// </para>
+    /// </summary>
+    public string? CurrentDiagStatus => LegacyDiagStatus ?? UsrDiagStatus ?? SvcDiagStatus;
 
     /// <summary><c>N</c> se il lotto e' stato inserito a mano, altrimenti viene dalla produzione.</summary>
     public string? EditStatusId { get; set; }

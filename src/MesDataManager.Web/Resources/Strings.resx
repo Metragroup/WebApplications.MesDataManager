@@ -919,6 +919,9 @@
   <data name="Msg.IsActiveLockedHint" xml:space="preserve">
     <value>Il flag "Attivo" è disponibile solo per le voci abilitate a livello master.</value>
   </data>
+  <data name="Msg.LegacyDiagnostics" xml:space="preserve">
+    <value>Diagnostica del vecchio applicativo</value>
+  </data>
   <data name="Msg.LockExpiresIn" xml:space="preserve">
     <value>Il blocco scade dopo {0} minuti di inattività.</value>
   </data>

@@ -331,6 +331,71 @@ public sealed class BatchDetailTests : IDisposable
         Assert.False(detail.HasDiagnostics);
     }
 
+    [Fact]
+    public async Task Finche_esiste_il_vecchio_esito_ha_la_precedenza()
+    {
+        // Il vecchio applicativo e' ancora in servizio e scrive le sue colonne: finche' le
+        // scrive, e' lui a dire come sta il lotto. Stessa precedenza delle funzioni
+        // EF.ufn_BatchByLength(Shift), allineate l'11 settembre 2026 — due ordini diversi
+        // farebbero dire cose diverse alle due modalita' dello stesso elenco.
+        await using (var context = _harness.CreateContext())
+        {
+            var batch = context.Batches.Single();
+            batch.LegacyDiagStatus = "ERR";
+            batch.LegacyDiagTs = Giorno.AddHours(8);
+            batch.LegacyDiagMsg = "Diagnostica lotto: ERR";
+            batch.UsrDiagStatus = "OK";
+            batch.UsrDiagTs = Giorno.AddHours(12);
+            batch.SvcDiagStatus = "ATT";
+            await context.SaveChangesAsync();
+        }
+
+        var detail = await Detail();
+
+        Assert.Equal("ERR", detail.DiagnosticsStatus);
+
+        // I tre restano distinti e visibili: la scheda li mostra affiancati, ed e' li' che si
+        // vede che una riesecuzione fatta da qui non ha cambiato quello che l'elenco mostra.
+        Assert.Equal("ERR", detail.LegacyDiagStatus);
+        Assert.Equal("OK", detail.UsrDiagStatus);
+        Assert.Equal("ATT", detail.SvcDiagStatus);
+        Assert.Equal("Diagnostica lotto: ERR", detail.LegacyDiagMsg);
+    }
+
+    [Fact]
+    public async Task Senza_il_vecchio_esito_vale_quello_dell_utente()
+    {
+        await using (var context = _harness.CreateContext())
+        {
+            var batch = context.Batches.Single();
+            batch.UsrDiagStatus = "OK";
+            batch.SvcDiagStatus = "ATT";
+            await context.SaveChangesAsync();
+        }
+
+        Assert.Equal("OK", (await Detail()).DiagnosticsStatus);
+    }
+
+    [Fact]
+    public async Task L_elenco_mostra_lo_stesso_esito_della_scheda()
+    {
+        // La stessa precedenza deve valere nella query dell'elenco, che la calcola in SQL, e
+        // nella scheda, che la calcola in memoria: sono due strade allo stesso valore.
+        await using (var context = _harness.CreateContext())
+        {
+            var batch = context.Batches.Single();
+            batch.LegacyDiagStatus = "ATT";
+            batch.UsrDiagStatus = "OK";
+            await context.SaveChangesAsync();
+        }
+
+        var page = await _harness.BatchServiceFor(Users.Reader).GetPageAsync(
+            new BatchListQuery(PressId: null));
+
+        Assert.Equal("ATT", Assert.Single(page.Rows).DiagnosticsStatus);
+        Assert.Equal("ATT", (await Detail()).DiagnosticsStatus);
+    }
+
     // ------------------------------------------------------------------ appoggio
 
     private Task<BatchDetail> Detail() =>

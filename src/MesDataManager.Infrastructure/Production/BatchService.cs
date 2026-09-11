@@ -84,11 +84,10 @@ public sealed partial class BatchService(
                 b.PressClosedTs,
                 b.IsSawClosed,
                 b.SawClosedTs,
-                // L'esito che vale e' quello dell'utente se c'e', altrimenti quello del servizio:
-                // i due gruppi di campi non si sovrascrivono a vicenda.
-                b.UsrDiagStatus == null
-                    ? (b.SvcDiagStatus == null ? null : b.SvcDiagStatus.TrimEnd())
-                    : b.UsrDiagStatus.TrimEnd(),
+                // Stessa COALESCE delle funzioni EF.ufn_BatchByLength(Shift), cosi' le due
+                // modalita' dell'elenco dicono la stessa cosa sullo stesso lotto: prima il vecchio
+                // applicativo finche' le sue colonne esistono, poi l'utente, poi il servizio.
+                (b.LegacyDiagStatus ?? b.UsrDiagStatus ?? b.SvcDiagStatus)!.TrimEnd(),
                 b.IsLock))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -194,6 +193,9 @@ public sealed partial class BatchService(
             batch.ItemMeterWeightMes,
             batch.ItemMeterWeightTest,
             batch.ItemMeterWeight,
+            batch.LegacyDiagStatus?.TrimEnd(),
+            batch.LegacyDiagTs,
+            batch.LegacyDiagMsg,
             batch.SvcDiagStatus?.TrimEnd(),
             batch.SvcDiagTs,
             batch.SvcDiagMsg,
@@ -443,7 +445,8 @@ public sealed partial class BatchService(
                 b.IsErpMarked,
                 b.IsErpImported,
                 b.IsLock,
-                b.UsrDiagStatus == null ? (b.SvcDiagStatus == null ? null : b.SvcDiagStatus.TrimEnd()) : b.UsrDiagStatus.TrimEnd()))
+                // Stessa COALESCE delle funzioni: vedi GetPageAsync.
+                (b.LegacyDiagStatus ?? b.UsrDiagStatus ?? b.SvcDiagStatus)!.TrimEnd()))
             .Skip((query.PageNumber - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToListAsync(cancellationToken)

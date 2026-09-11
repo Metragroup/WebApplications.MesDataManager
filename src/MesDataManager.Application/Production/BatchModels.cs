@@ -86,6 +86,9 @@ public sealed record BatchDetail(
     decimal? ItemMeterWeightMes,
     decimal? ItemMeterWeightTest,
     decimal? ItemMeterWeight,
+    string? LegacyDiagStatus,
+    DateTime? LegacyDiagTs,
+    string? LegacyDiagMsg,
     string? SvcDiagStatus,
     DateTime? SvcDiagTs,
     string? SvcDiagMsg,
@@ -108,19 +111,21 @@ public sealed record BatchDetail(
     public bool IsFromProduction => EditStatusId?.Trim() != "N";
 
     /// <summary>
-    /// L'esito che vale adesso: quello dell'utente se la diagnostica e' stata rieseguita da qui,
-    /// altrimenti quello del servizio.
+    /// L'esito che vale adesso, con la stessa precedenza delle funzioni
+    /// <c>EF.ufn_BatchByLength(Shift)</c>: prima il vecchio applicativo finche' le sue colonne
+    /// esistono, poi l'utente, poi il servizio.
     /// <para>
-    /// I due gruppi di campi non si sovrascrivono a vicenda — il servizio scrive i suoi, questa
-    /// applicazione i propri — quindi "lo stato della diagnostica" e' una lettura, non un campo.
+    /// I tre gruppi di campi non si sovrascrivono a vicenda — ognuno ha il suo produttore —
+    /// quindi "lo stato della diagnostica" e' una lettura, non un campo.
     /// </para>
     /// </summary>
-    public string? DiagnosticsStatus =>
-        string.IsNullOrWhiteSpace(UsrDiagStatus) ? SvcDiagStatus : UsrDiagStatus;
+    public string? DiagnosticsStatus => LegacyDiagStatus ?? UsrDiagStatus ?? SvcDiagStatus;
 
-    /// <summary>Vero se nessuno dei due gruppi porta un esito: la diagnostica non e' mai stata eseguita.</summary>
+    /// <summary>Vero se almeno un produttore ha lasciato un esito.</summary>
     public bool HasDiagnostics =>
-        !string.IsNullOrWhiteSpace(SvcDiagStatus) || !string.IsNullOrWhiteSpace(UsrDiagStatus);
+        !string.IsNullOrWhiteSpace(LegacyDiagStatus) ||
+        !string.IsNullOrWhiteSpace(SvcDiagStatus) ||
+        !string.IsNullOrWhiteSpace(UsrDiagStatus);
 }
 
 /// <summary>

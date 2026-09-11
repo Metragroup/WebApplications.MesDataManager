@@ -389,6 +389,18 @@
                                        Timestamp="_detail.SvcDiagTs"
                                        Message="_detail.SvcDiagMsg"
                                        Json="_detail.SvcDiagJson" />
+
+                @* Quella del vecchio applicativo, che e' ancora in servizio e scrive le sue
+                   colonne. Compare solo dove c'e': e' il valore che gli elenchi mostrano finche'
+                   quelle colonne esistono, quindi va potuto confrontare con gli altri due. *@
+                @if (!string.IsNullOrWhiteSpace(_detail.LegacyDiagStatus) ||
+                     !string.IsNullOrWhiteSpace(_detail.LegacyDiagMsg))
+                {
+                    <BatchDiagnosticsPanel Title="@L["Msg.LegacyDiagnostics"]"
+                                           Status="_detail.LegacyDiagStatus"
+                                           Timestamp="_detail.LegacyDiagTs"
+                                           Message="_detail.LegacyDiagMsg" />
+                }
             </MudTabPanel>
         </MudTabs>
     }

@@ -919,6 +919,9 @@
   <data name="Msg.IsActiveLockedHint" xml:space="preserve">
     <value>The "Active" flag is only available for entries enabled at master level.</value>
   </data>
+  <data name="Msg.LegacyDiagnostics" xml:space="preserve">
+    <value>Legacy application diagnostics</value>
+  </data>
   <data name="Msg.LockExpiresIn" xml:space="preserve">
     <value>The lock expires after {0} minutes of inactivity.</value>
   </data>

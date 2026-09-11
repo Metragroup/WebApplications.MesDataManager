@@ -166,19 +166,29 @@ Conseguenze da rispettare nel codice:
   proprio sul lotto messo peggio. Il testo intero resta nel JSON accanto;
 - le colonne JSON **non entrano nelle query di elenco** — si leggono solo in `GetDetailAsync`. Un
   valore fino a 8.000 byte resta in riga, oltre va su pagine LOB;
-- "lo stato della diagnostica" e' una **lettura dei due**: quello dell'utente se c'e', altrimenti
-  quello del servizio. Vale per l'elenco, per la marcatura e per l'effetto sulle presse senza MES.
+- "lo stato della diagnostica" e' una **lettura di tre**, nell'ordine
+  `Diagnostics* -> UsrDiag* -> SvcDiag*`: prima il vecchio applicativo finche' e' in servizio, poi
+  l'utente, poi il servizio. Vale per l'elenco, per la marcatura e per l'effetto sulle presse
+  senza MES, e coincide con la `COALESCE` delle funzioni (vedi sotto).
 
 Nota di metodo, che e' costata un errore: `sys.columns.max_length` e' in **byte**, quindi per
 `nvarchar` va diviso per due.
 
-**Fuori dall'applicazione.** Le colonne vecchie `Diagnostics*` **restano a database** con i loro
-233 mila valori e i loro consumatori: `EF.ufn_BatchByLengthShift` — la funzione che alimenta il
-"dettaglio lunghezza" di questa applicazione — espone ancora `B.DiagnosticsStatus`, quindi in
-quella modalita' la colonna Diagnostica mostra il valore storico e non quello nuovo. Sistemarlo
-significa cambiare la funzione, che appartiene al MES: da segnalare a chi la mantiene. Stessa
-cosa per `BI.vBatch`, `History.Batch`, `MetraPQ.DatiLottoPerTurnoLunghezza` e
-`Press.ufn_Batch_Data`.
+**Le colonne vecchie restano, e hanno la precedenza.** `Diagnostics*` non sono state eliminate:
+il vecchio applicativo e' ancora in servizio e continua a scriverle, su 273.899 lotti con un
+esito vero. Le funzioni `EF.ufn_BatchByLength` e `EF.ufn_BatchByLengthShift` sono state allineate
+l'11 settembre 2026 a `COALESCE(B.DiagnosticsStatus, B.UsrDiagStatus, B.SvcDiagStatus)`, e questa
+applicazione legge nello stesso ordine — verificato sui dati veri: sui 29 lotti di una giornata,
+tabella e funzione danno lo stesso esito su tutti.
+
+Ne discende che **su un lotto gia' diagnosticato dal vecchio applicativo una riesecuzione fatta
+da qui non cambia cio' che gli elenchi mostrano**. Si vede nella scheda, che tiene i tre
+produttori affiancati. Quando il vecchio applicativo uscira' di servizio, va tolto il primo dei
+tre: qui, nell'entita' `Batch` e nelle due funzioni.
+
+Restano da guardare, quando quel momento arriva: `BI.vBatch`, `History.Batch`,
+`MetraPQ.DatiLottoPerTurnoLunghezza` e `Press.ufn_Batch_Data`, che citano ancora le colonne
+vecchie.
 
 **Se lo spazio diventasse un problema** la leva e' una pulizia periodica delle risposte piu'
 vecchie di sei mesi, tenendo esito, data e referto. Non e' deciso e non serve oggi.
