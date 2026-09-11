@@ -1,0 +1,432 @@
+@inject IStringLocalizer<Strings> L
+@inject IBatchService Batches
+@inject ILookupProvider Lookups
+@inject ILogger<NewBatchDialog> Logger
+
+@*
+    Creazione di un lotto a mano (FrmNewBatch nel vecchio applicativo), in due passi: prima il
+    lotto, poi le billette.
+
+    I due passi non sono un vezzo: il numero del lotto dipende da pressa e istante di inizio, e le
+    date delle billette partono da quelle del lotto. Chiedere tutto insieme portava a compilare le
+    billette e poi cambiare la data del lotto, lasciandole fuori dalla sua finestra.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@L["Msg.NewBatchTitle"]</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4">@L["Msg.NewBatchHint"]</MudText>
+
+        <MudTabs Elevation="0" Rounded="false" Border="false" @bind-ActivePanelIndex="_step">
+            <MudTabPanel Text="@L["Msg.NewBatchHeaderStep"]">
+                <MudGrid Spacing="2" Class="pt-2">
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="string" @bind-Value="_pressId"
+                                   @bind-Value:after="RecomputeBatchId"
+                                   Label="@L["Field.PressId"]"
+                                   Required="true"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (var item in _presses)
+                            {
+                                <MudSelectItem T="string" Value="@item.Value">@item.Text</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudTextField T="string" Value="@_batchId"
+                                      Label="@L["Field.BatchId"]"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      ReadOnly="true"
+                                      Class="mes-cell--code" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudDatePicker Date="_startDate"
+                                       DateChanged="@(d => { _startDate = d ?? _startDate; RecomputeBatchId(); })"
+                                       Label="@L["Field.BatchStart"]"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense"
+                                       Editable="true" Clearable="false" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTimePicker Time="_startTime"
+                                       TimeChanged="@(t => { _startTime = t ?? _startTime; RecomputeBatchId(); })"
+                                       Label="@L["Field.BatchStart"]"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense"
+                                       Editable="true" Clearable="false" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudDatePicker Date="_stopDate" DateChanged="@(d => _stopDate = d ?? _stopDate)"
+                                       Label="@L["Field.BatchStop"]"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense"
+                                       Editable="true" Clearable="false" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTimePicker Time="_stopTime" TimeChanged="@(t => _stopTime = t ?? _stopTime)"
+                                       Label="@L["Field.BatchStop"]"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense"
+                                       Editable="true" Clearable="false" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="_dieCode"
+                                      @bind-Value:after="ResetDie"
+                                      Label="@L["Field.DieCode"]"
+                                      Required="true"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudNumericField T="short?" @bind-Value="_dieNumber"
+                                         @bind-Value:after="ResetDie"
+                                         Label="@L["Field.DieNumber"]"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense"
+                                         Min="0" Clearable="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudButton OnClick="CheckDieAsync"
+                                   Variant="Variant.Outlined"
+                                   Disabled="@(_working || string.IsNullOrWhiteSpace(_dieCode))"
+                                   Class="mt-1">
+                            @L["Action.Check"]
+                        </MudButton>
+                    </MudItem>
+
+                    @if (_die is { } die)
+                    {
+                        <MudItem xs="12">
+                            <MudAlert Severity="@(die.IsUsable ? (die.IsWarning ? Severity.Warning : Severity.Success) : Severity.Error)"
+                                      Variant="Variant.Outlined" Dense="true">
+                                @DieMessage(die.Outcome)
+                            </MudAlert>
+                        </MudItem>
+                    }
+
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="string" @bind-Value="_closingReasonId"
+                                   Label="@L["Field.BatchClosingReason"]"
+                                   Required="true"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (var item in _closingReasons)
+                            {
+                                <MudSelectItem T="string" Value="@item.Value">@item.Text</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
+            </MudTabPanel>
+
+            <MudTabPanel Text="@L["Msg.NewBatchBilletsStep"]" Disabled="@(_die is not { IsUsable: true })">
+                <MudGrid Spacing="2" Class="pt-2">
+                    <MudItem xs="6" sm="4">
+                        <MudNumericField T="int" @bind-Value="_count"
+                                         @bind-Value:after="RecomputeTo"
+                                         Label="@L["Field.BilletsToAdd"]"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="500" />
+                    </MudItem>
+                    <MudItem xs="6" sm="4">
+                        <MudNumericField T="short" @bind-Value="_fromNo"
+                                         @bind-Value:after="RecomputeTo"
+                                         Label="@L["Field.BilletFrom"]"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" />
+                    </MudItem>
+                    <MudItem xs="6" sm="4">
+                        <MudTextField T="string" Value="@_toNo.ToString(CultureInfo.InvariantCulture)"
+                                      Label="@L["Field.BilletTo"]"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+                    </MudItem>
+
+                    <MudItem xs="6" sm="3">
+                        <MudNumericField T="decimal" @bind-Value="_barLength"
+                                         Label="@L["Field.MmBarSet"]"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudNumericField T="int" @bind-Value="_billetLength"
+                                         Label="@L["Field.MmBilletAct"]"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudNumericField T="decimal" @bind-Value="_kgSheared"
+                                         Label="@L["Field.KgShearedTotal"]"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudNumericField T="decimal" @bind-Value="_kgExtruded"
+                                         Label="@L["Field.KgExtrudedTotal"]"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="_prodId"
+                                      Label="@L["Field.ProdId"]"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="_castingId"
+                                      @bind-Value:after="CheckCastingAsync"
+                                      Label="@L["Field.Casting"]"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudTextField T="string" Value="@_alloyId"
+                                      Label="@L["Field.Alloy"]"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+                    </MudItem>
+                </MudGrid>
+            </MudTabPanel>
+        </MudTabs>
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mt-4">
+                @_error
+            </MudAlert>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_working">@L["Action.Cancel"]</MudButton>
+
+        @if (_step == 0)
+        {
+            <MudButton Color="Color.Primary"
+                       Variant="Variant.Filled"
+                       Disabled="@(_working || _die is not { IsUsable: true })"
+                       OnClick="@(() => _step = 1)">
+                @L["Msg.NewBatchBilletsStep"]
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreateAsync" Disabled="_working">
+                @if (_working)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                }
+                @L["Action.NewBatch"]
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; } = default!;
+
+    /// <summary>Pressa preselezionata: quella del filtro dell'elenco, se ce n'e' una.</summary>
+    [Parameter]
+    public string? DefaultPressId { get; set; }
+
+    private IReadOnlyList<LookupItem> _presses = [];
+    private IReadOnlyList<LookupItem> _closingReasons = [];
+
+    private int _step;
+
+    private string _pressId = string.Empty;
+    private string _batchId = string.Empty;
+    private DateTime _startDate = DateTime.Today;
+    private TimeSpan _startTime = DateTime.Now.TimeOfDay;
+    private DateTime _stopDate = DateTime.Today;
+    private TimeSpan _stopTime = DateTime.Now.TimeOfDay;
+
+    private string? _dieCode;
+    private short? _dieNumber;
+    private DieValidation? _die;
+
+    private string _closingReasonId = string.Empty;
+
+    private int _count = 1;
+    private short _fromNo = 1;
+    private short _toNo = 1;
+    private decimal _barLength;
+    private int _billetLength;
+    private decimal _kgSheared;
+    private decimal _kgExtruded;
+    private string? _prodId;
+    private string? _castingId;
+    private string? _alloyId;
+
+    private string? _error;
+    private bool _working;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _presses = await Lookups.GetAsync(LookupKeys.Presses);
+        _closingReasons = await Lookups.GetAsync(LookupKeys.BatchClosingReasons);
+
+        _pressId = DefaultPressId is { Length: > 0 } press
+            ? press
+            : _presses.FirstOrDefault()?.Value ?? string.Empty;
+
+        _closingReasonId = _closingReasons.FirstOrDefault()?.Value ?? string.Empty;
+
+        RecomputeBatchId();
+        RecomputeTo();
+    }
+
+    /// <summary>
+    /// Il numero del lotto non si digita: e' pressa piu' istante di inizio, come nel MES. Si
+    /// mostra perche' e' il riferimento con cui il lotto verra' chiamato in reparto.
+    /// </summary>
+    private void RecomputeBatchId()
+    {
+        var start = _startDate.Date + _startTime;
+        _batchId = string.IsNullOrWhiteSpace(_pressId)
+            ? string.Empty
+            : $"{_pressId}{start:yyMMddHHmmss}";
+    }
+
+    private void RecomputeTo() => _toNo = (short)(_fromNo + Math.Max(_count, 1) - 1);
+
+    private void ResetDie()
+    {
+        _die = null;
+        _error = null;
+    }
+
+    private async Task CheckDieAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_dieCode))
+        {
+            return;
+        }
+
+        _working = true;
+        _error = null;
+
+        try
+        {
+            _die = await Batches.ValidateDieAsync(_dieCode, _dieNumber);
+        }
+        catch (ProductionException ex)
+        {
+            _error = ex.Localize(L);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Controllo della matrice non riuscito.");
+            _error = L["Error.UnexpectedError"];
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    private async Task CheckCastingAsync()
+    {
+        _alloyId = null;
+
+        if (string.IsNullOrWhiteSpace(_castingId))
+        {
+            return;
+        }
+
+        try
+        {
+            var casting = await Batches.FindCastingAsync(_castingId);
+
+            if (casting is null)
+            {
+                _error = L["Error.CastingNotFound"];
+                return;
+            }
+
+            _castingId = casting.Code;
+            _alloyId = casting.AlloyId;
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Controllo della colata non riuscito.");
+            _error = L["Error.UnexpectedError"];
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        _working = true;
+        _error = null;
+
+        try
+        {
+            await CheckCastingAsync();
+
+            if (string.IsNullOrWhiteSpace(_castingId) || _alloyId is null)
+            {
+                _error ??= L["Error.CastingNotFound"];
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_prodId) && !await Batches.ProdOrderExistsAsync(_prodId))
+            {
+                _error = L["Error.ProdOrderNotFound"];
+                return;
+            }
+
+            if (!short.TryParse(_closingReasonId, CultureInfo.InvariantCulture, out var closingReason))
+            {
+                _error = L["Error.RequiredField"];
+                return;
+            }
+
+            var start = _startDate.Date + _startTime;
+            var stop = _stopDate.Date + _stopTime;
+
+            var request = new NewBatchRequest(
+                PressId: _pressId,
+                DieCode: _die!.DieCode,
+                DieNumber: _die.DieNumber,
+                StartTs: start,
+                StopTs: stop,
+                ClosingReasonId: closingReason,
+                Billets: new NewBilletsRequest(
+                    Count: _count,
+                    FromNo: _fromNo,
+                    From: start,
+                    To: stop,
+                    BarLengthMm: _barLength,
+                    BilletLengthMm: _billetLength,
+                    KgSheared: _kgSheared,
+                    KgExtruded: _kgExtruded,
+                    ProdId: _prodId,
+                    CastingId: _castingId,
+                    AlloyId: _alloyId));
+
+            var batchId = await Batches.CreateAsync(request);
+
+            Dialog.Close(DialogResult.Ok(batchId));
+        }
+        catch (ProductionException ex)
+        {
+            _error = ex.Localize(L);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Creazione del lotto non riuscita.");
+            _error = L["Error.UnexpectedError"];
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private string DieMessage(DieCheck outcome) => outcome switch
+    {
+        DieCheck.Available => L["Msg.DieAvailable"],
+        DieCheck.Test => L["Msg.DieTest"],
+        DieCheck.Unknown => L["Msg.DieUnknown"],
+        DieCheck.NotFound => L["Error.DieNotFound"],
+        DieCheck.Stored => L["Error.DieStored"],
+        DieCheck.Deleted => L["Error.DieDeleted"],
+        DieCheck.Transferred => L["Error.DieTransferred"],
+        _ => L["Error.UnexpectedError"],
+    };
+}

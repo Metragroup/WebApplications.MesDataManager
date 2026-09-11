@@ -511,3 +511,69 @@ h1[tabindex]:focus-visible {
     }
 }
 
+
+/* Le schede della scheda del lotto (billette, incestamento, fermi, ordini, diagnostica). La
+   pagina e' una colonna flessibile: senza min-height le tabelle piu' lunghe spingerebbero il
+   contenitore invece di scorrere, e la barra delle schede uscirebbe dallo schermo. */
+.mes-tabs {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.mes-tabs .mud-tabs-panels {
+    overflow: auto;
+}
+
+/* Dentro una scheda l'ultima tabella non ha bisogno del margine di separazione. */
+.mes-tabs .mes-table:last-child {
+    margin-bottom: 0;
+}
+
+/* I comandi della scheda stanno in fondo all'intestazione, non prima del titolo: il titolo dice
+   quale lotto si sta guardando, e va letto per primo. */
+.mes-page__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+/* Un valore di testata che porta un comando accanto: il testo resta la cosa da leggere, il
+   pulsante gli sta a fianco senza allargare la riga. */
+.mes-field__value--action {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* Barra comandi delle billette in modifica: i comandi sopra la griglia, il conteggio della
+   selezione all'estremita' opposta. */
+.mes-billets {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.mes-billets__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+}
+
+/* L'istante con il comando che lo cambia: il pulsante non deve allontanare il valore dalla
+   colonna accanto. */
+.mes-cell--times {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+/* Elenchi di errori e avvisi della diagnostica dentro il riquadro: senza i margini del
+   browser, che dentro un avviso stretto sprecano mezza riga. */
+.mes-diagnostics__list {
+    margin: 0;
+    padding-left: 1.25rem;
+}

@@ -1,0 +1,108 @@
+@inject IStringLocalizer<Strings> L
+
+@*
+    Istanti di inizio e fine di una billetta.
+
+    Nel vecchio applicativo si scrivevano direttamente nelle celle della griglia. Qui no, e la
+    ragione e' pratica: un selettore di data e ora dentro una cella alta venti pixel non si usa, e
+    un campo di testo con la data da digitare a mano e' il posto dove nascono le date sbagliate.
+
+    Sono gli unici due valori di billetta che il salvataggio guarda anche per un'altra ragione: se
+    cambiano sulla prima o sull'ultima billetta, i marcatori di apertura e chiusura del lotto
+    vanno riallineati.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@L["Msg.BilletTimesTitle", BilletNo]</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudDatePicker Date="_startDate" DateChanged="@(d => _startDate = d ?? _startDate)"
+                               Label="@L["Field.BatchStart"]"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Editable="true" Clearable="false" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker Time="_startTime" TimeChanged="@(t => _startTime = t ?? _startTime)"
+                               Label="@L["Field.BatchStart"]"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Editable="true" Clearable="false" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudDatePicker Date="_stopDate" DateChanged="@(d => _stopDate = d ?? _stopDate)"
+                               Label="@L["Field.BatchStop"]"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Editable="true" Clearable="false" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker Time="_stopTime" TimeChanged="@(t => _stopTime = t ?? _stopTime)"
+                               Label="@L["Field.BatchStop"]"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Editable="true" Clearable="false" />
+            </MudItem>
+        </MudGrid>
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mt-4">
+                @_error
+            </MudAlert>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">@L["Action.Cancel"]</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Confirm">@L["Action.Apply"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; } = default!;
+
+    [Parameter]
+    public short BilletNo { get; set; }
+
+    [Parameter]
+    public DateTime? StartTs { get; set; }
+
+    [Parameter]
+    public DateTime? StopTs { get; set; }
+
+    private DateTime _startDate = DateTime.Today;
+    private TimeSpan _startTime = TimeSpan.Zero;
+    private DateTime _stopDate = DateTime.Today;
+    private TimeSpan _stopTime = TimeSpan.Zero;
+
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        var start = StartTs ?? DateTime.Now;
+        var stop = StopTs ?? start;
+
+        _startDate = start.Date;
+        _startTime = start.TimeOfDay;
+        _stopDate = stop.Date;
+        _stopTime = stop.TimeOfDay;
+    }
+
+    private void Confirm()
+    {
+        var start = _startDate.Date + _startTime;
+        var stop = _stopDate.Date + _stopTime;
+
+        if (stop < start)
+        {
+            _error = L["Error.PeriodInvalid"];
+            return;
+        }
+
+        Dialog.Close(DialogResult.Ok((start, stop)));
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

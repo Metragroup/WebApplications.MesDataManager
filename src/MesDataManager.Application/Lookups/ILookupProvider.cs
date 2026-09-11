@@ -25,4 +25,7 @@ public static class LookupKeys
     public const string Modules = "modules";
     public const string DowntimeTypes = "downtimeTypes";
     public const string DowntimeReasons = "downtimeReasons";
+
+    /// <summary>Causali di chiusura lotto attive, in ordine di posizione.</summary>
+    public const string BatchClosingReasons = "batchClosingReasons";
 }

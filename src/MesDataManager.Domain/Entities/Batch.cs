@@ -22,6 +22,9 @@ public sealed class Batch
     public string? DieId { get; set; }
     public string? DieCode { get; set; }
     public short? DieNumber { get; set; }
+
+    /// <summary>Stato della matrice fotografato sul lotto. Lo scrive la raccolta dati, non questa applicazione.</summary>
+    public string? DieStatusId { get; set; }
     public DateTime? StartTs { get; set; }
     public DateTime? StopTs { get; set; }
     public short? BilletCount { get; set; }
@@ -72,11 +75,49 @@ public sealed class Batch
     public decimal? ItemMeterWeightTest { get; set; }
     public decimal? ItemMeterWeight { get; set; }
 
-    /// <summary>Esito della diagnostica: <c>OK</c>, <c>ATT</c> (avvisi) o <c>ERR</c>.</summary>
-    public string? DiagnosticsStatus { get; set; }
+    /// <summary>
+    /// Esito della diagnostica <b>del servizio</b>: <c>OK</c>, <c>ATT</c> (avvisi) o <c>ERR</c>.
+    /// <para>
+    /// Lo scrive il servizio di diagnostica quando elabora il lotto per conto suo. Questa
+    /// applicazione non lo tocca <b>mai</b>, nemmeno quando e' vuoto: un lotto senza esito del
+    /// servizio e' un buco nel calcolo automatico, e riempirlo con l'esito di una diagnostica
+    /// chiesta a mano cancellerebbe proprio l'informazione che serve a trovarlo.
+    /// </para>
+    /// </summary>
+    public string? SvcDiagStatus { get; set; }
 
-    public DateTime? DiagnosticsTs { get; set; }
-    public string? DiagnosticsMsg { get; set; }
+    public DateTime? SvcDiagTs { get; set; }
+
+    /// <summary>Referto leggibile del servizio, dal campo <c>diagnostics.message</c> della risposta.</summary>
+    public string? SvcDiagMsg { get; set; }
+
+    /// <summary>Risposta del servizio conservata intera e verbatim (<c>nvarchar(max)</c>).</summary>
+    public string? SvcDiagJson { get; set; }
+
+    /// <summary>
+    /// Esito dell'ultima diagnostica <b>chiesta da un utente</b> da questa applicazione. E'
+    /// l'unico gruppo di campi che l'applicazione scrive.
+    /// </summary>
+    public string? UsrDiagStatus { get; set; }
+
+    public DateTime? UsrDiagTs { get; set; }
+
+    /// <summary>
+    /// Referto leggibile, come arriva dal servizio (<c>diagnostics.message</c>). Non si compone
+    /// piu' a partire dal JSON: messaggio e risposta si conservano separati.
+    /// </summary>
+    public string? UsrDiagMsg { get; set; }
+
+    /// <summary>Risposta del servizio conservata intera e verbatim (<c>nvarchar(max)</c>).</summary>
+    public string? UsrDiagJson { get; set; }
+
+    /// <summary>
+    /// L'esito che vale adesso: quello dell'utente se la diagnostica e' stata rieseguita da questa
+    /// applicazione, altrimenti quello del servizio. Non e' una colonna — i due gruppi non si
+    /// sovrascrivono a vicenda — ed e' esclusa dalla mappatura.
+    /// </summary>
+    public string? CurrentDiagStatus =>
+        string.IsNullOrWhiteSpace(UsrDiagStatus) ? SvcDiagStatus : UsrDiagStatus;
 
     /// <summary><c>N</c> se il lotto e' stato inserito a mano, altrimenti viene dalla produzione.</summary>
     public string? EditStatusId { get; set; }

@@ -1,0 +1,184 @@
+@inject IStringLocalizer<Strings> L
+
+@*
+    La diagnostica del lotto in forma leggibile: referto, riepilogo dei controlli, errori e
+    avvisi, billette che il servizio ritiene mancanti.
+
+    Due sorgenti, separate a database dall'11 settembre 2026: il referto leggibile (*DiagMsg, come
+    lo compone il servizio) e la risposta intera (*DiagJson), da cui si ricava il dettaglio. Le
+    risposte precedenti non hanno il referto: la' si ricade sugli elenchi di errori e avvisi
+    ricavati dal JSON, e sui lotti storici sul solo testo.
+*@
+
+<MudPaper Elevation="0" Class="mes-card">
+    <MudText Typo="Typo.subtitle2" Class="mes-card__title">
+        @Title
+        @if (!string.IsNullOrWhiteSpace(Status))
+        {
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="@OutcomeColor(Status)">
+                @Status
+            </MudChip>
+        }
+        @if (Timestamp is not null)
+        {
+            <MudText Typo="Typo.caption">@Timestamp.Value.ToString("g", CultureInfo.CurrentCulture)</MudText>
+        }
+    </MudText>
+
+    @* Il referto del servizio, quando c'e', e' la prima cosa da leggere: riassume in due righe
+       quello che il dettaglio sotto espande. *@
+    @if (!string.IsNullOrWhiteSpace(Message))
+    {
+        <pre class="mes-diagnostics">@Message</pre>
+    }
+
+    @if (_report is { } report)
+    {
+        <MudGrid Spacing="2" Class="mb-2">
+            @Counter(L["Msg.DiagnosticsChecks"], report.Total)
+            @Counter(L["Msg.DiagnosticsPassed"], report.Passed, Color.Success)
+            @Counter(L["Msg.DiagnosticsWarnings"], report.Warnings, Color.Warning)
+            @Counter(L["Msg.DiagnosticsFailed"], report.Failed, Color.Error)
+        </MudGrid>
+
+        @* Errori e avvisi si elencano solo se il referto non c'e' gia': altrimenti sarebbero le
+           stesse righe scritte due volte. *@
+        @if (string.IsNullOrWhiteSpace(Message) && report.ErrorMessages.Count > 0)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-2">
+                <ul class="mes-diagnostics__list">
+                    @foreach (var message in report.ErrorMessages)
+                    {
+                        <li>@message</li>
+                    }
+                </ul>
+            </MudAlert>
+        }
+
+        @if (string.IsNullOrWhiteSpace(Message) && report.WarningMessages.Count > 0)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-2">
+                <ul class="mes-diagnostics__list">
+                    @foreach (var message in report.WarningMessages)
+                    {
+                        <li>@message</li>
+                    }
+                </ul>
+            </MudAlert>
+        }
+
+        @if (report.MissingBillets.Count > 0)
+        {
+            <MudText Typo="Typo.subtitle2" Class="mes-section__title">
+                @L["Msg.DiagnosticsMissingBillets"] (@report.MissingBillets.Count)
+            </MudText>
+
+            <MudTable T="MissingBilletReport" Items="report.MissingBillets" Dense="true" Hover="true"
+                      Striped="true" Elevation="0" Class="mes-table">
+                <HeaderContent>
+                    <MudTh>@L["Field.BilletNo"]</MudTh>
+                    <MudTh>@L["Msg.DiagnosticsDecision"]</MudTh>
+                    <MudTh>@L["Msg.DiagnosticsConfidence"]</MudTh>
+                    <MudTh>@L["Msg.DiagnosticsGap"]</MudTh>
+                    <MudTh>@L["Msg.DiagnosticsReasons"]</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="@L["Field.BilletNo"]" Class="mes-cell--number">@context.BilletNo</MudTd>
+                    <MudTd DataLabel="@L["Msg.DiagnosticsDecision"]" Class="mes-cell--code">@Text(context.Decision)</MudTd>
+                    <MudTd DataLabel="@L["Msg.DiagnosticsConfidence"]" Class="mes-cell--number">
+                        @(context.ConfidenceScore?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")
+                    </MudTd>
+                    <MudTd DataLabel="@L["Msg.DiagnosticsGap"]">@Text(context.GapDetail)</MudTd>
+                    <MudTd DataLabel="@L["Msg.DiagnosticsReasons"]" Class="mes-cell--wide">
+                        @(context.ReasonCodes.Count == 0 ? "—" : string.Join(", ", context.ReasonCodes))
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+
+        @* I controlli eseguiti sono quindici e nel caso normale passano tutti: stanno chiusi, e
+           si aprono quando si vuole sapere cosa e' stato guardato. *@
+        <MudExpansionPanels Elevation="0" Dense="true">
+            <MudExpansionPanel Text="@L["Msg.DiagnosticsAllChecks"]">
+                <MudTable T="DiagnosticsCheck" Items="report.Checks" Dense="true" Striped="true"
+                          Elevation="0" Class="mes-table">
+                    <HeaderContent>
+                        <MudTh>@L["Msg.DiagnosticsCheck"]</MudTh>
+                        <MudTh>@L["Field.Description"]</MudTh>
+                        <MudTh>@L["Msg.DiagnosticsOutcome"]</MudTh>
+                        <MudTh>@L["Msg.DiagnosticsDetail"]</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="@L["Msg.DiagnosticsCheck"]" Class="mes-cell--code">@context.Id</MudTd>
+                        <MudTd DataLabel="@L["Field.Description"]" Class="mes-cell--wide">@Text(context.Description)</MudTd>
+                        <MudTd DataLabel="@L["Msg.DiagnosticsOutcome"]">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                     Color="@CheckColor(context.Outcome)">
+                                @Text(context.Outcome)
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="@L["Msg.DiagnosticsDetail"]">@Text(context.Detail)</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    }
+    else if (string.IsNullOrWhiteSpace(Message))
+    {
+        <MudText Typo="Typo.body2">@L["Msg.DiagnosticsNotRun"]</MudText>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Status { get; set; }
+
+    [Parameter]
+    public DateTime? Timestamp { get; set; }
+
+    /// <summary>
+    /// Referto leggibile come lo compone il servizio (<c>*DiagMsg</c>). Sui lotti storici e' il
+    /// referto del vecchio applicativo.
+    /// </summary>
+    [Parameter]
+    public string? Message { get; set; }
+
+    /// <summary>Risposta del servizio conservata verbatim (<c>*DiagJson</c>): da qui il dettaglio.</summary>
+    [Parameter]
+    public string? Json { get; set; }
+
+    private DiagnosticsReport? _report;
+
+    protected override void OnParametersSet() => _report = DiagnosticsReportReader.TryRead(Json);
+
+    private RenderFragment Counter(string label, int value, Color color = Color.Default) =>
+        @<MudItem xs="6" sm="3">
+            <div class="mes-field">
+                <span class="mes-field__label">@label</span>
+                <span class="mes-field__value">
+                    <MudText Typo="Typo.body1" Color="@(value > 0 ? color : Color.Default)">@value</MudText>
+                </span>
+            </div>
+        </MudItem>;
+
+    private static string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static Color OutcomeColor(string? status) => status?.Trim() switch
+    {
+        DiagnosticsOutcome.Error => Color.Error,
+        DiagnosticsOutcome.Warning => Color.Warning,
+        DiagnosticsOutcome.Ok => Color.Success,
+        _ => Color.Default,
+    };
+
+    private static Color CheckColor(string? outcome) => outcome?.Trim().ToUpperInvariant() switch
+    {
+        "PASS" => Color.Success,
+        "WARN" or "WARNING" => Color.Warning,
+        "FAIL" => Color.Error,
+        _ => Color.Default,
+    };
+}

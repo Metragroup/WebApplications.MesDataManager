@@ -46,6 +46,10 @@ internal sealed class ProductionHarness : IDisposable
 
         using var context = CreateContext();
         context.Database.EnsureCreated();
+
+        // EnsureCreated non crea le viste: senza queste tabelle la scheda del lotto non e'
+        // verificabile qui, perche' incestamento e ordini di produzione le interrogano.
+        ViewTables.Create(context);
     }
 
     public MesDbContext CreateContext() => new(_options);
@@ -59,7 +63,24 @@ internal sealed class ProductionHarness : IDisposable
 
     /// <summary>Servizio dei lotti configurato con i permessi indicati.</summary>
     public IBatchService BatchServiceFor(UserPermissions permissions) =>
-        new BatchService(new Factory(_options), new FakeUserContext(permissions));
+        new BatchService(
+            new Factory(_options),
+            new FakeUserContext(permissions),
+            NullLogger<BatchService>.Instance);
+
+    /// <summary>
+    /// Diagnostica con un client finto al posto del servizio HTTP: cio' che l'applicazione fa
+    /// con la risposta — conservarla, inserire le billette mancanti, decidere l'esito — non ha
+    /// bisogno di rete per essere verificato.
+    /// </summary>
+    public IBatchDiagnosticsService DiagnosticsServiceFor(
+        UserPermissions permissions,
+        IDiagnosticsClient client) =>
+        new BatchDiagnosticsService(
+            new Factory(_options),
+            new FakeUserContext(permissions),
+            client,
+            NullLogger<BatchDiagnosticsService>.Instance);
 
     /// <summary>
     /// Indicatori di apertura con un calendario turni finto: la funzione di SQL Server che
@@ -74,10 +95,26 @@ internal sealed class ProductionHarness : IDisposable
             new FakeShiftCalendar(shifts),
             new LookupProvider(new Factory(_options), new MemoryCache(new MemoryCacheOptions())));
 
+    /// <summary>
+    /// Scrive i dati di partenza. Le entita' mappate a viste non passano dal tracciamento — EF
+    /// rifiuta di salvarle, giustamente — e vengono inserite con SQL, come farebbe il MES.
+    /// </summary>
     public void Seed(params object[] entities)
     {
         using var context = CreateContext();
-        context.AddRange(entities);
+
+        foreach (var entity in entities)
+        {
+            if (ViewTables.IsView(context, entity.GetType()))
+            {
+                ViewTables.Insert(context, entity);
+            }
+            else
+            {
+                context.Add(entity);
+            }
+        }
+
         context.SaveChanges();
     }
 

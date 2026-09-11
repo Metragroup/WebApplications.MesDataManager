@@ -207,17 +207,55 @@ test diventano necessari, non opzionali. L'infrastruttura ora esiste.
 
 ---
 
-### B3 — Come modellare testata/righe
+### B3 — Come modellare testata/righe — *chiusa il 9 settembre 2026 per i lotti*
 
 **Contesto.** Il catalogo di metadati risolve il CRUD ripetitivo. Non risolve "cosa significa
 chiudere un lotto": validazioni che coinvolgono piu' entita', transizioni di stato, calcoli.
 
-**Da decidere.** L'approccio: servizi applicativi scritti a mano con pagine dedicate (la strada
-naturale), e come strutturare la transazione fra testata e righe.
+**Decisione, per il modulo lotti.** Servizi applicativi scritti a mano e pagine dedicate, come
+previsto. La transazione fra testata e righe e' risolta cosi': le modifiche **non** vivono in
+entita' tracciate ma in un oggetto dell'applicazione (`BatchEditModel`), che tiene la fotografia
+di partenza accanto ai valori correnti — quindi "c'e' qualcosa da salvare" si ottiene
+confrontando, non alzando un flag. Le entita' si materializzano solo al salvataggio, dentro una
+transazione sola.
 
-**Nota di metodo.** Vale la pena rifare per quei moduli lo stesso lavoro fatto qui: leggere il
-vecchio codice per estrarne le regole implicite, prima di scrivere il nuovo. Nel modulo
-anagrafiche e' stata la parte piu' utile dell'analisi, e quella che il codice non raccontava.
+Due conseguenze che valgono anche per i moduli successivi (storico ceste, storico carico):
+
+- **le procedure lunghe del MES stanno fuori dalla transazione.** `usp_Batch_Elab` impiega ~35
+  secondi per lotto: dentro la transazione avrebbe tenuto i lock su tabelle su cui la raccolta
+  dati scrive di continuo. Si commetta prima e si richiami dopo, dichiarando all'operatore che
+  l'operazione dura;
+- **il timeout predefinito dei comandi (30 secondi) non basta per le procedure del MES**, e
+  nessun test su SQLite lo rivela. Chi richiama una procedura deve alzarlo di proposito.
+
+**Nota di metodo, confermata.** Rileggere il vecchio codice per estrarne le regole implicite
+prima di scrivere il nuovo e' stata anche qui la parte piu' utile: la divisione dei chilogrammi
+fra le billette, il riallineamento dei marcatori, la causale duplicata sul marcatore di chiusura e
+il divieto di sovrascrivere una billetta corretta a mano non stavano in nessun documento.
+
+---
+
+### B4 — Il dettaglio diagnostico delle billette automatiche a distanza di tempo
+
+**Contesto.** La risposta del servizio di diagnostica si conserva intera in
+`Press.Batch.UsrDiagJson` (`nvarchar(max)`, campi rinominati l'11 settembre 2026), e da la' la
+scheda ricava il motivo per cui una billetta e' stata inserita automaticamente. Ma il campo tiene
+**l'ultima** risposta: rieseguendo la diagnostica dopo aver corretto il lotto, il motivo delle
+billette inserite prima non c'e' piu'.
+
+Con la separazione fra i campi del servizio e quelli dell'utente il caso si e' attenuato: la
+risposta del servizio resta in `SvcDiagJson` e nessuno la sovrascrive, quindi il motivo della
+**prima** inserzione automatica sopravvive. Si perdono le esecuzioni intermedie chieste a mano.
+
+**Quanto pesa.** Poco, finche' la diagnostica si esegue prima di correggere — che e' l'ordine
+naturale. Diventa un problema se qualcuno, mesi dopo, deve giustificare una billetta che nel
+lotto non era stata rilevata dalla pressa.
+
+**Opzioni.** Una colonna di esito su `BatchBillet`, una tabella di storico degli esiti
+diagnostici, oppure niente. Le prime due dipendono da A3.
+
+**Se non si decide.** Resta com'e': la billetta rimane riconoscibile (`EditStatusID = 'A'`) ma
+senza il perche'.
 
 ---
 

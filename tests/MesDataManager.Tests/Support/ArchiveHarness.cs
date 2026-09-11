@@ -63,6 +63,23 @@ internal static class Users
         CanUpdate = true,
         CanDelete = true,
         CanEditProduction = true,
+        IsAdministrator = true,
+    };
+
+    /// <summary>
+    /// Ha insieme <c>Archive.Editor</c> e <c>Production.Editor</c>: ne esce la stessa
+    /// combinazione di permessi dell'amministratore, <b>senza</b> esserlo. Serve a verificare che
+    /// lo sblocco forzato di un lotto guardi il ruolo e non la somma dei permessi.
+    /// </summary>
+    public static readonly UserPermissions BothEditors = new()
+    {
+        UserName = "doppio.ruolo",
+        IsAuthenticated = true,
+        CanRead = true,
+        CanInsert = true,
+        CanUpdate = true,
+        CanDelete = true,
+        CanEditProduction = true,
     };
 }
 

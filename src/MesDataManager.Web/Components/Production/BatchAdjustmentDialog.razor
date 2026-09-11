@@ -1,0 +1,76 @@
+@inject IStringLocalizer<Strings> L
+
+@*
+    Una rettifica delle barre da aggiungere. Tre valori e nulla piu': lunghezza, ordine di
+    produzione e quantita' — con il segno, che e' il dato che conta.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@L["Msg.NewAdjustmentTitle"]</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4">@L["Msg.NewAdjustmentHint"]</MudText>
+
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="4">
+                <MudNumericField T="decimal" @bind-Value="_barLength"
+                                 Label="@L["Field.BarLength"]"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_prodId"
+                              Label="@L["Field.ProdId"]"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                @* Nessun minimo: una rettifica negativa e' legittima, ed e' il caso piu' comune. *@
+                <MudNumericField T="int" @bind-Value="_qty"
+                                 Label="@L["Field.Qty"]"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+        </MudGrid>
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mt-4">
+                @_error
+            </MudAlert>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">@L["Action.Cancel"]</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Confirm">@L["Action.Add"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; } = default!;
+
+    private decimal _barLength;
+    private string? _prodId;
+    private int _qty;
+    private string? _error;
+
+    private void Confirm()
+    {
+        if (_barLength <= 0)
+        {
+            _error = L["Error.InvalidValue"];
+            return;
+        }
+
+        if (_qty == 0)
+        {
+            _error = L["Error.InvalidValue"];
+            return;
+        }
+
+        Dialog.Close(DialogResult.Ok(new BatchAdjustmentValues(_barLength, _prodId, _qty)));
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

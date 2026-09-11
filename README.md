@@ -156,14 +156,15 @@ istanze non è sicuro. Gli script vanno gestiti dal processo di deploy del datab
 
 ## Prossimi passi suggeriti
 
-1. Connettersi a un database di sviluppo e verificare la mappatura tabella per tabella (è il
-   punto in cui emergono le differenze fra EDMX e schema reale). Provare lì un salvataggio con
-   chiave duplicata e uno su una voce referenziata: sono i due percorsi di errore che i test
-   non possono coprire.
-2. Provare la modifica da browser con il circuito interattivo attivo, per confermare che
-   l'identità arrivi anche fuori dal rendering lato server.
-3. Decidere la sorte di `Press`, `Oven` e `HeatThreatment`.
-4. Assegnare i ruoli e provare i tre esiti: accesso negato senza ruolo, consultazione con
-   `Reader`, scrittura con `Archive.Editor`.
-5. Solo dopo: affrontare i moduli testata/righe (batch, billette, fermate), che sono la
-   parte con logica di dominio vera.
+1. **Provare da browser la modifica del lotto**, con il circuito interattivo attivo: modifica in
+   linea delle billette, comandi della barra, salvataggio. I percorsi di scrittura sono
+   verificati al livello del servizio, sul database di test dentro transazioni annullate, ma
+   nessun test attraversa i controlli che li richiamano.
+2. Decidere la sorte di `Press`, `Oven` e `HeatThreatment`.
+3. Assegnare i ruoli e provare i quattro esiti: accesso negato senza ruolo, consultazione con
+   `Reader`, scrittura delle anagrafiche con `Archive.Editor`, scrittura dei lotti con
+   `Production.Editor`.
+4. **Dire a chi usa l'applicazione che il salvataggio di un lotto dura circa quaranta secondi**:
+   sono i tempi del ricalcolo del MES (`usp_Batch_Elab`), gli stessi del vecchio applicativo, e
+   la scheda lo dichiara prima di cominciare.
+5. Poi i moduli che restano: storico ceste e storico carico (`docs/roadmap.md`, voci 1.4 e 1.5).

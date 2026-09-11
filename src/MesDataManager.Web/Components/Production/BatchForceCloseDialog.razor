@@ -1,0 +1,57 @@
+@inject IStringLocalizer<Strings> L
+
+@*
+    Chiusura forzata di pressa e sega. Le due chiusure sono distinte e avvengono in momenti
+    diversi — prima la pressa, poi la sega — quindi si scelgono a parte.
+
+    Chi la usa e' chi sa che il lotto e' finito ma la raccolta dati non l'ha registrato: e'
+    un'operazione da reparto, non un ripiego generico, e per questo chiede conferma esplicita.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@L["Msg.ForceCloseTitle"]</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4">@L["Msg.ForceCloseText", BatchId]</MudText>
+
+        <MudCheckBox T="bool" @bind-Value="_press" Label="@L["Msg.ForceClosePress"]" Color="Color.Primary" />
+        <MudCheckBox T="bool" @bind-Value="_saw" Label="@L["Msg.ForceCloseSaw"]" Color="Color.Primary" />
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">@L["Action.Cancel"]</MudButton>
+        <MudButton Color="Color.Warning"
+                   Variant="Variant.Filled"
+                   Disabled="@(!_press && !_saw)"
+                   OnClick="Confirm">
+            @L["Action.ForceClose"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; } = default!;
+
+    [Parameter]
+    public string BatchId { get; set; } = string.Empty;
+
+    /// <summary>Se la pressa risulta gia' chiusa: la casella parte spenta.</summary>
+    [Parameter]
+    public bool PressClosed { get; set; }
+
+    private bool _press;
+    private bool _saw;
+
+    protected override void OnInitialized()
+    {
+        _press = !PressClosed;
+        _saw = true;
+    }
+
+    private void Confirm() => Dialog.Close(DialogResult.Ok((_press, _saw)));
+
+    private void Cancel() => Dialog.Cancel();
+}

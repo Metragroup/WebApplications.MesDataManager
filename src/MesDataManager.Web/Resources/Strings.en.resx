@@ -46,8 +46,14 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Action.Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
   <data name="Action.Apply" xml:space="preserve">
     <value>Apply</value>
+  </data>
+  <data name="Action.Assign" xml:space="preserve">
+    <value>Assign</value>
   </data>
   <data name="Action.Back" xml:space="preserve">
     <value>Back</value>
@@ -55,23 +61,68 @@
   <data name="Action.Cancel" xml:space="preserve">
     <value>Cancel</value>
   </data>
+  <data name="Action.Check" xml:space="preserve">
+    <value>Check</value>
+  </data>
   <data name="Action.Close" xml:space="preserve">
     <value>Close</value>
+  </data>
+  <data name="Action.Continue" xml:space="preserve">
+    <value>Keep editing</value>
   </data>
   <data name="Action.Delete" xml:space="preserve">
     <value>Delete</value>
   </data>
+  <data name="Action.DeleteBatch" xml:space="preserve">
+    <value>Delete batch</value>
+  </data>
   <data name="Action.DeleteRecord" xml:space="preserve">
     <value>Delete record</value>
+  </data>
+  <data name="Action.Discard" xml:space="preserve">
+    <value>Discard</value>
+  </data>
+  <data name="Action.Duplicate" xml:space="preserve">
+    <value>Duplicate</value>
+  </data>
+  <data name="Action.Edit" xml:space="preserve">
+    <value>Edit</value>
   </data>
   <data name="Action.EditRecord" xml:space="preserve">
     <value>Edit record</value>
   </data>
+  <data name="Action.EditSelected" xml:space="preserve">
+    <value>Edit selection</value>
+  </data>
+  <data name="Action.ForceClose" xml:space="preserve">
+    <value>Force closing</value>
+  </data>
+  <data name="Action.ForceUnlock" xml:space="preserve">
+    <value>Force unlock</value>
+  </data>
+  <data name="Action.MarkForErp" xml:space="preserve">
+    <value>Mark for reconciliation</value>
+  </data>
   <data name="Action.New" xml:space="preserve">
     <value>New</value>
   </data>
+  <data name="Action.NewBatch" xml:space="preserve">
+    <value>New batch</value>
+  </data>
+  <data name="Action.OpenBatch" xml:space="preserve">
+    <value>Open batch</value>
+  </data>
   <data name="Action.Refresh" xml:space="preserve">
     <value>Refresh</value>
+  </data>
+  <data name="Action.Remove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="Action.Renumber" xml:space="preserve">
+    <value>Renumber</value>
+  </data>
+  <data name="Action.RunDiagnostics" xml:space="preserve">
+    <value>Run diagnostics</value>
   </data>
   <data name="Action.Save" xml:space="preserve">
     <value>Save</value>
@@ -81,6 +132,9 @@
   </data>
   <data name="Action.SignOut" xml:space="preserve">
     <value>Sign out</value>
+  </data>
+  <data name="Action.UnmarkForErp" xml:space="preserve">
+    <value>Unmark for reconciliation</value>
   </data>
   <data name="Action.ViewRecord" xml:space="preserve">
     <value>Open details</value>
@@ -145,6 +199,42 @@
   <data name="Error.ArchiveNotFound" xml:space="preserve">
     <value>The requested archive does not exist.</value>
   </data>
+  <data name="Error.BatchAlreadyExists" xml:space="preserve">
+    <value>A batch with this number already exists: change the start time.</value>
+  </data>
+  <data name="Error.BatchAlreadyReconciled" xml:space="preserve">
+    <value>Batch already reconciled by the ERP: it cannot be edited.</value>
+  </data>
+  <data name="Error.BatchLockLost" xml:space="preserve">
+    <value>The batch lock now belongs to {0}: unsaved changes are lost.</value>
+  </data>
+  <data name="Error.BatchLocked" xml:space="preserve">
+    <value>Batch being edited by {0} since {1}.</value>
+  </data>
+  <data name="Error.BatchPeriodOverlap" xml:space="preserve">
+    <value>The period overlaps batches: {0}.</value>
+  </data>
+  <data name="Error.BatchProcessing" xml:space="preserve">
+    <value>Batch processing is still running: it cannot be edited.</value>
+  </data>
+  <data name="Error.CastingNotFound" xml:space="preserve">
+    <value>Casting code not found.</value>
+  </data>
+  <data name="Error.DiagnosticsUnavailable" xml:space="preserve">
+    <value>The diagnostics service is not responding: try again later.</value>
+  </data>
+  <data name="Error.DieDeleted" xml:space="preserve">
+    <value>Die deleted: cannot be assigned.</value>
+  </data>
+  <data name="Error.DieNotFound" xml:space="preserve">
+    <value>Die not found.</value>
+  </data>
+  <data name="Error.DieStored" xml:space="preserve">
+    <value>Die in store: cannot be assigned.</value>
+  </data>
+  <data name="Error.DieTransferred" xml:space="preserve">
+    <value>Die transferred: cannot be assigned.</value>
+  </data>
   <data name="Error.DowntimePeriodOverlap" xml:space="preserve">
     <value>The period overlaps downtimes already recorded on this press: {0}.</value>
   </data>
@@ -168,6 +258,9 @@
   </data>
   <data name="Error.PeriodTooWide" xml:space="preserve">
     <value>The period cannot exceed {0} days.</value>
+  </data>
+  <data name="Error.ProdOrderNotFound" xml:space="preserve">
+    <value>Production order not found.</value>
   </data>
   <data name="Error.RecordNotFound" xml:space="preserve">
     <value>Record not found.</value>
@@ -202,6 +295,9 @@
   <data name="Field.BarCount" xml:space="preserve">
     <value>Bars</value>
   </data>
+  <data name="Field.BarLength" xml:space="preserve">
+    <value>Length (mm)</value>
+  </data>
   <data name="Field.BatchCloseState" xml:space="preserve">
     <value>Status</value>
   </data>
@@ -229,11 +325,20 @@
   <data name="Field.BilletDiameter" xml:space="preserve">
     <value>Billet diameter</value>
   </data>
+  <data name="Field.BilletFrom" xml:space="preserve">
+    <value>From number</value>
+  </data>
   <data name="Field.BilletMeterWeight" xml:space="preserve">
     <value>Billet weight per meter</value>
   </data>
   <data name="Field.BilletNo" xml:space="preserve">
     <value>Billet no.</value>
+  </data>
+  <data name="Field.BilletTo" xml:space="preserve">
+    <value>To number</value>
+  </data>
+  <data name="Field.BilletsToAdd" xml:space="preserve">
+    <value>Billets</value>
   </data>
   <data name="Field.Casting" xml:space="preserve">
     <value>Casting</value>
@@ -244,11 +349,20 @@
   <data name="Field.CompanyId" xml:space="preserve">
     <value>Company</value>
   </data>
+  <data name="Field.CreatedTs" xml:space="preserve">
+    <value>Created</value>
+  </data>
+  <data name="Field.CustomerName" xml:space="preserve">
+    <value>Customer</value>
+  </data>
   <data name="Field.Description" xml:space="preserve">
     <value>Description</value>
   </data>
   <data name="Field.DiagnosticsStatus" xml:space="preserve">
     <value>Diagnostics</value>
+  </data>
+  <data name="Field.DieCode" xml:space="preserve">
+    <value>Die code</value>
   </data>
   <data name="Field.DieCorrectionIssueId" xml:space="preserve">
     <value>ID</value>
@@ -256,11 +370,20 @@
   <data name="Field.DieId" xml:space="preserve">
     <value>Die</value>
   </data>
+  <data name="Field.DieNumber" xml:space="preserve">
+    <value>Die number</value>
+  </data>
+  <data name="Field.DowntimeCode" xml:space="preserve">
+    <value>Downtime code</value>
+  </data>
   <data name="Field.DowntimeCount" xml:space="preserve">
     <value>Downtimes</value>
   </data>
   <data name="Field.DowntimeDuration" xml:space="preserve">
     <value>Duration</value>
+  </data>
+  <data name="Field.DowntimeNo" xml:space="preserve">
+    <value>Downtime no.</value>
   </data>
   <data name="Field.DowntimeReason" xml:space="preserve">
     <value>Reason</value>
@@ -276,6 +399,9 @@
   </data>
   <data name="Field.DurationMinutes" xml:space="preserve">
     <value>Duration (minutes)</value>
+  </data>
+  <data name="Field.EditStatus" xml:space="preserve">
+    <value>State</value>
   </data>
   <data name="Field.Efficiency" xml:space="preserve">
     <value>Efficiency</value>
@@ -300,6 +426,9 @@
   </data>
   <data name="Field.HeatThreatmentId" xml:space="preserve">
     <value>Thermal treatment</value>
+  </data>
+  <data name="Field.HeatTreatment" xml:space="preserve">
+    <value>Heat treatment</value>
   </data>
   <data name="Field.IsActive" xml:space="preserve">
     <value>Active</value>
@@ -376,11 +505,17 @@
   <data name="Field.KgExtruded" xml:space="preserve">
     <value>Extruded kg</value>
   </data>
+  <data name="Field.KgExtrudedTotal" xml:space="preserve">
+    <value>Extruded kg (total)</value>
+  </data>
   <data name="Field.KgRaw" xml:space="preserve">
     <value>Gross kg</value>
   </data>
   <data name="Field.KgSheared" xml:space="preserve">
     <value>Sheared kg</value>
+  </data>
+  <data name="Field.KgShearedTotal" xml:space="preserve">
+    <value>Sheared kg (total)</value>
   </data>
   <data name="Field.LastName" xml:space="preserve">
     <value>Last name</value>
@@ -448,6 +583,9 @@
   <data name="Field.OprId" xml:space="preserve">
     <value>Operation</value>
   </data>
+  <data name="Field.OprNum" xml:space="preserve">
+    <value>Oper. no.</value>
+  </data>
   <data name="Field.OvenId" xml:space="preserve">
     <value>Oven</value>
   </data>
@@ -508,8 +646,14 @@
   <data name="Field.PressReducedProdReasonId" xml:space="preserve">
     <value>ID</value>
   </data>
+  <data name="Field.ProdAlloyId" xml:space="preserve">
+    <value>Alloy (production)</value>
+  </data>
   <data name="Field.ProdId" xml:space="preserve">
     <value>Order</value>
+  </data>
+  <data name="Field.Qty" xml:space="preserve">
+    <value>Qty</value>
   </data>
   <data name="Field.RecipeId" xml:space="preserve">
     <value>ID</value>
@@ -519,6 +663,9 @@
   </data>
   <data name="Field.Result" xml:space="preserve">
     <value>Result</value>
+  </data>
+  <data name="Field.SalesAlloyId" xml:space="preserve">
+    <value>Alloy (sales)</value>
   </data>
   <data name="Field.SawClosed" xml:space="preserve">
     <value>Saw closed</value>
@@ -535,6 +682,9 @@
   <data name="Field.SawWrkCtrId" xml:space="preserve">
     <value>Saw work center</value>
   </data>
+  <data name="Field.ScrapQty" xml:space="preserve">
+    <value>Scrap qty</value>
+  </data>
   <data name="Field.ShiftDate" xml:space="preserve">
     <value>Shift date</value>
   </data>
@@ -547,14 +697,32 @@
   <data name="Field.WorkerId" xml:space="preserve">
     <value>Operator</value>
   </data>
+  <data name="Field.WrkCtrId" xml:space="preserve">
+    <value>Work centre</value>
+  </data>
   <data name="Msg.AllPresses" xml:space="preserve">
     <value>ALL</value>
   </data>
   <data name="Msg.AllReasons" xml:space="preserve">
     <value>All reasons</value>
   </data>
+  <data name="Msg.ApplyToSelected" xml:space="preserve">
+    <value>The value will be applied to {0} selected billets.</value>
+  </data>
+  <data name="Msg.BatchAdjustments" xml:space="preserve">
+    <value>Adjustments</value>
+  </data>
+  <data name="Msg.BatchBasket" xml:space="preserve">
+    <value>Basket loading</value>
+  </data>
   <data name="Msg.BatchBillets" xml:space="preserve">
     <value>Billets</value>
+  </data>
+  <data name="Msg.BatchDeleted" xml:space="preserve">
+    <value>Batch {0} deleted.</value>
+  </data>
+  <data name="Msg.BatchDiagnostics" xml:space="preserve">
+    <value>Diagnostics</value>
   </data>
   <data name="Msg.BatchDowntimes" xml:space="preserve">
     <value>Batch downtimes</value>
@@ -565,6 +733,9 @@
   <data name="Msg.BatchProcessing" xml:space="preserve">
     <value>Extrusion in progress</value>
   </data>
+  <data name="Msg.BatchProdOrders" xml:space="preserve">
+    <value>Production orders</value>
+  </data>
   <data name="Msg.BatchStateAny" xml:space="preserve">
     <value>All</value>
   </data>
@@ -573,6 +744,9 @@
   </data>
   <data name="Msg.BatchStateRunning" xml:space="preserve">
     <value>Running</value>
+  </data>
+  <data name="Msg.BatchTransactions" xml:space="preserve">
+    <value>Transactions</value>
   </data>
   <data name="Msg.BatchTypeAny" xml:space="preserve">
     <value>ALL</value>
@@ -586,11 +760,32 @@
   <data name="Msg.BatchWeights" xml:space="preserve">
     <value>Weights</value>
   </data>
+  <data name="Msg.BatchesSelected" xml:space="preserve">
+    <value>{0} batches selected</value>
+  </data>
+  <data name="Msg.BilletTimesTitle" xml:space="preserve">
+    <value>Times of billet {0}</value>
+  </data>
+  <data name="Msg.BilletsSelected" xml:space="preserve">
+    <value>{0} selected</value>
+  </data>
+  <data name="Msg.ChangeDieHint" xml:space="preserve">
+    <value>Code and number of the new die. Existence and status are checked before it is assigned.</value>
+  </data>
+  <data name="Msg.ChangeDieTitle" xml:space="preserve">
+    <value>Change die</value>
+  </data>
   <data name="Msg.Dashboard" xml:space="preserve">
     <value>Dashboard</value>
   </data>
   <data name="Msg.Database" xml:space="preserve">
     <value>Database</value>
+  </data>
+  <data name="Msg.DeleteBatchConfirmText" xml:space="preserve">
+    <value>Batch {0}, die {1}. Deleting removes billets, orders, worker records and adjustments, and notifies the ERP.</value>
+  </data>
+  <data name="Msg.DeleteBatchConfirmTitle" xml:space="preserve">
+    <value>Delete the batch?</value>
   </data>
   <data name="Msg.DeleteConfirmText" xml:space="preserve">
     <value>This cannot be undone.</value>
@@ -598,14 +793,149 @@
   <data name="Msg.DeleteConfirmTitle" xml:space="preserve">
     <value>Delete this record?</value>
   </data>
+  <data name="Msg.DeleteProductionBatchText" xml:space="preserve">
+    <value>This batch was recorded by the press, not entered manually: deleting it removes real production data. Continue?</value>
+  </data>
+  <data name="Msg.DeleteProductionBatchTitle" xml:space="preserve">
+    <value>The batch comes from production</value>
+  </data>
+  <data name="Msg.DiagnosticsAllChecks" xml:space="preserve">
+    <value>All checks</value>
+  </data>
+  <data name="Msg.DiagnosticsCheck" xml:space="preserve">
+    <value>Check</value>
+  </data>
+  <data name="Msg.DiagnosticsChecks" xml:space="preserve">
+    <value>Checks</value>
+  </data>
+  <data name="Msg.DiagnosticsConfidence" xml:space="preserve">
+    <value>Confidence</value>
+  </data>
+  <data name="Msg.DiagnosticsDecision" xml:space="preserve">
+    <value>Decision</value>
+  </data>
+  <data name="Msg.DiagnosticsDetail" xml:space="preserve">
+    <value>Detail</value>
+  </data>
+  <data name="Msg.DiagnosticsDone" xml:space="preserve">
+    <value>Diagnostics completed: outcome {0}.</value>
+  </data>
+  <data name="Msg.DiagnosticsFailed" xml:space="preserve">
+    <value>Failed</value>
+  </data>
+  <data name="Msg.DiagnosticsGap" xml:space="preserve">
+    <value>Detected gap</value>
+  </data>
+  <data name="Msg.DiagnosticsInsertedBillets" xml:space="preserve">
+    <value>Diagnostics inserted {0} missing billets.</value>
+  </data>
+  <data name="Msg.DiagnosticsMissingBillets" xml:space="preserve">
+    <value>Missing billets</value>
+  </data>
+  <data name="Msg.DiagnosticsNotRun" xml:space="preserve">
+    <value>Diagnostics not run</value>
+  </data>
+  <data name="Msg.DiagnosticsOutcome" xml:space="preserve">
+    <value>Outcome</value>
+  </data>
+  <data name="Msg.DiagnosticsPassed" xml:space="preserve">
+    <value>Passed</value>
+  </data>
+  <data name="Msg.DiagnosticsReasons" xml:space="preserve">
+    <value>Reasons</value>
+  </data>
+  <data name="Msg.DiagnosticsWarnings" xml:space="preserve">
+    <value>Warnings</value>
+  </data>
+  <data name="Msg.DieAvailable" xml:space="preserve">
+    <value>Die available.</value>
+  </data>
+  <data name="Msg.DieTest" xml:space="preserve">
+    <value>Warning: test die.</value>
+  </data>
+  <data name="Msg.DieUnknown" xml:space="preserve">
+    <value>Warning: the die exists but declares no usage status.</value>
+  </data>
+  <data name="Msg.DiscardChangesText" xml:space="preserve">
+    <value>The unsaved changes to the batch will be lost.</value>
+  </data>
+  <data name="Msg.DiscardChangesTitle" xml:space="preserve">
+    <value>Discard changes?</value>
+  </data>
+  <data name="Msg.DuplicateBilletHint" xml:space="preserve">
+    <value>The copies mirror the source billet and are spread over the given interval.</value>
+  </data>
+  <data name="Msg.DuplicateBilletTitle" xml:space="preserve">
+    <value>Duplicate billet</value>
+  </data>
+  <data name="Msg.EditCancelled" xml:space="preserve">
+    <value>Editing abandoned, batch unlocked.</value>
+  </data>
+  <data name="Msg.EditMode" xml:space="preserve">
+    <value>Editing</value>
+  </data>
   <data name="Msg.EditRecordTitle" xml:space="preserve">
     <value>Edit record</value>
+  </data>
+  <data name="Msg.EditStarted" xml:space="preserve">
+    <value>Batch locked for editing.</value>
+  </data>
+  <data name="Msg.EditStatusAutomatic" xml:space="preserve">
+    <value>Added by diagnostics</value>
+  </data>
+  <data name="Msg.EditStatusModified" xml:space="preserve">
+    <value>Edited manually</value>
+  </data>
+  <data name="Msg.EditStatusNew" xml:space="preserve">
+    <value>Added manually</value>
+  </data>
+  <data name="Msg.FirstDiagnostics" xml:space="preserve">
+    <value>First diagnostics</value>
+  </data>
+  <data name="Msg.ForceCloseDone" xml:space="preserve">
+    <value>Force closing done.</value>
+  </data>
+  <data name="Msg.ForceClosePress" xml:space="preserve">
+    <value>Close at press</value>
+  </data>
+  <data name="Msg.ForceCloseSaw" xml:space="preserve">
+    <value>Close at saw</value>
+  </data>
+  <data name="Msg.ForceCloseText" xml:space="preserve">
+    <value>Force the closing of batch {0}?</value>
+  </data>
+  <data name="Msg.ForceCloseTitle" xml:space="preserve">
+    <value>Force closing</value>
+  </data>
+  <data name="Msg.ForceUnlockConfirmText" xml:space="preserve">
+    <value>The batch is being edited by {0}. Forcing the unlock discards their unsaved changes.</value>
+  </data>
+  <data name="Msg.ForceUnlockConfirmTitle" xml:space="preserve">
+    <value>Force unlock?</value>
+  </data>
+  <data name="Msg.ForceUnlockDone" xml:space="preserve">
+    <value>Unlock forced.</value>
   </data>
   <data name="Msg.IsActiveLockedHint" xml:space="preserve">
     <value>The "Active" flag is only available for entries enabled at master level.</value>
   </data>
+  <data name="Msg.LockExpiresIn" xml:space="preserve">
+    <value>The lock expires after {0} minutes of inactivity.</value>
+  </data>
   <data name="Msg.Macrofermi" xml:space="preserve">
     <value>Macro downtimes</value>
+  </data>
+  <data name="Msg.MarkConfirmText" xml:space="preserve">
+    <value>The {0} selected batches will be marked for reconciliation.</value>
+  </data>
+  <data name="Msg.MarkConfirmTitle" xml:space="preserve">
+    <value>Mark for reconciliation?</value>
+  </data>
+  <data name="Msg.MarkDone" xml:space="preserve">
+    <value>{0} batches updated.</value>
+  </data>
+  <data name="Msg.MarkSkipped" xml:space="preserve">
+    <value>{0} batches skipped: {1}</value>
   </data>
   <data name="Msg.MasterLockedHint" xml:space="preserve">
     <value>Only position and active flag can be changed on this table.</value>
@@ -613,11 +943,38 @@
   <data name="Msg.Microfermi" xml:space="preserve">
     <value>Micro downtimes</value>
   </data>
+  <data name="Msg.NewAdjustmentHint" xml:space="preserve">
+    <value>The quantity can be negative: it corrects the saw count.</value>
+  </data>
+  <data name="Msg.NewAdjustmentTitle" xml:space="preserve">
+    <value>New adjustment</value>
+  </data>
+  <data name="Msg.NewBatchBilletsStep" xml:space="preserve">
+    <value>Billets</value>
+  </data>
+  <data name="Msg.NewBatchCreated" xml:space="preserve">
+    <value>Batch {0} created.</value>
+  </data>
+  <data name="Msg.NewBatchHeaderStep" xml:space="preserve">
+    <value>Batch</value>
+  </data>
+  <data name="Msg.NewBatchHint" xml:space="preserve">
+    <value>The batch is created closed at press and saw: it reconstructs production that data collection did not record.</value>
+  </data>
+  <data name="Msg.NewBatchTitle" xml:space="preserve">
+    <value>New batch</value>
+  </data>
+  <data name="Msg.NewBilletsTitle" xml:space="preserve">
+    <value>Add billets</value>
+  </data>
   <data name="Msg.NewRecordTitle" xml:space="preserve">
     <value>New record</value>
   </data>
   <data name="Msg.No" xml:space="preserve">
     <value>No</value>
+  </data>
+  <data name="Msg.NoClosingReason" xml:space="preserve">
+    <value>No reason</value>
   </data>
   <data name="Msg.NoDowntimesToday" xml:space="preserve">
     <value>No downtimes recorded today.</value>
@@ -636,6 +993,9 @@
   </data>
   <data name="Msg.PageNotAvailable" xml:space="preserve">
     <value>This page is not available yet.</value>
+  </data>
+  <data name="Msg.PendingChanges" xml:space="preserve">
+    <value>Unsaved changes</value>
   </data>
   <data name="Msg.ProductionDay" xml:space="preserve">
     <value>Production day</value>
@@ -661,6 +1021,24 @@
   <data name="Msg.RecordSaved" xml:space="preserve">
     <value>Record saved.</value>
   </data>
+  <data name="Msg.RemoveBilletsConfirmText" xml:space="preserve">
+    <value>The {0} selected billets will be removed from the batch when you save.</value>
+  </data>
+  <data name="Msg.RemoveBilletsConfirmTitle" xml:space="preserve">
+    <value>Remove the billets?</value>
+  </data>
+  <data name="Msg.RenumberBilletsHint" xml:space="preserve">
+    <value>The {0} selected billets are renumbered in sequence from the given number.</value>
+  </data>
+  <data name="Msg.RenumberBilletsTitle" xml:space="preserve">
+    <value>Renumber billets</value>
+  </data>
+  <data name="Msg.SavedWithoutRecalculation" xml:space="preserve">
+    <value>Changes saved, but the batch recalculation failed: the summary values are still the previous ones.</value>
+  </data>
+  <data name="Msg.SavingBatch" xml:space="preserve">
+    <value>Saving: recalculating the batch takes about forty seconds.</value>
+  </data>
   <data name="Msg.SearchPlaceholder" xml:space="preserve">
     <value>Search…</value>
   </data>
@@ -673,8 +1051,35 @@
   <data name="Msg.Server" xml:space="preserve">
     <value>Server</value>
   </data>
+  <data name="Msg.ServiceDiagnostics" xml:space="preserve">
+    <value>Service diagnostics</value>
+  </data>
+  <data name="Msg.SkipAlreadyImported" xml:space="preserve">
+    <value>already reconciled</value>
+  </data>
+  <data name="Msg.SkipDiagnosticsError" xml:space="preserve">
+    <value>diagnostics in error</value>
+  </data>
+  <data name="Msg.SkipLocked" xml:space="preserve">
+    <value>being edited</value>
+  </data>
+  <data name="Msg.SkipNoDiagnostics" xml:space="preserve">
+    <value>no diagnostics</value>
+  </data>
+  <data name="Msg.SkipNotFound" xml:space="preserve">
+    <value>no longer present</value>
+  </data>
   <data name="Msg.ToReconcileBatches" xml:space="preserve">
     <value>To reconcile</value>
+  </data>
+  <data name="Msg.UnmarkConfirmText" xml:space="preserve">
+    <value>The {0} selected batches will be removed from the ERP queue.</value>
+  </data>
+  <data name="Msg.UnmarkConfirmTitle" xml:space="preserve">
+    <value>Remove the mark?</value>
+  </data>
+  <data name="Msg.UserDiagnostics" xml:space="preserve">
+    <value>Requested diagnostics</value>
   </data>
   <data name="Msg.ViewRecordTitle" xml:space="preserve">
     <value>Record details</value>

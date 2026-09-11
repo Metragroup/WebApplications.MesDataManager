@@ -45,11 +45,21 @@ public sealed record BatchListQuery(
 /// <summary>Una pagina di lotti, con il totale delle righe che soddisfano il filtro.</summary>
 public sealed record BatchPage(IReadOnlyList<BatchRow> Rows, int TotalCount);
 
-/// <summary>Testata del lotto, come la mostra la scheda di dettaglio.</summary>
+/// <summary>
+/// Il lotto come lo mostra la scheda di dettaglio: testata piu' le cinque raccolte che
+/// compongono le altre schede.
+/// <para>
+/// E' una fotografia di sola lettura. La modifica non passa da qui ma da
+/// <c>BatchEditModel</c>: questo record descrive cio' che si vede, non cio' che si scrive.
+/// </para>
+/// </summary>
 public sealed record BatchDetail(
     string BatchId,
     string PressId,
     string? DieId,
+    string? DieCode,
+    short? DieNumber,
+    short? PressBatchClosingReasonId,
     short? BilletCount,
     int RealBilletCount,
     int? BarCount,
@@ -66,6 +76,8 @@ public sealed record BatchDetail(
     bool IsErpImported,
     bool IsLock,
     string? LockUsr,
+    DateTime? LockTs,
+    string? EditStatusId,
     decimal? KgRaw,
     decimal? KgSheared,
     decimal? KgExtruded,
@@ -74,10 +86,81 @@ public sealed record BatchDetail(
     decimal? ItemMeterWeightMes,
     decimal? ItemMeterWeightTest,
     decimal? ItemMeterWeight,
-    string? DiagnosticsStatus,
-    DateTime? DiagnosticsTs,
-    string? DiagnosticsMsg,
-    IReadOnlyList<BatchBilletRow> Billets);
+    string? SvcDiagStatus,
+    DateTime? SvcDiagTs,
+    string? SvcDiagMsg,
+    string? SvcDiagJson,
+    string? UsrDiagStatus,
+    DateTime? UsrDiagTs,
+    string? UsrDiagMsg,
+    string? UsrDiagJson,
+    IReadOnlyList<BatchBilletRow> Billets,
+    IReadOnlyList<BatchAdjustmentRow> Adjustments,
+    IReadOnlyList<ModuleTransRow> ModuleTransactions,
+    IReadOnlyList<BatchProdOrderRow> ProductionOrders,
+    bool AllowAdjustments)
+{
+    /// <summary>
+    /// Il lotto viene dalla produzione e non e' stato inserito a mano. Serve alla seconda
+    /// conferma dell'eliminazione, che il vecchio applicativo chiedeva proprio in questo caso
+    /// (<c>BatchesPresenter.IsOriginalBatch</c>).
+    /// </summary>
+    public bool IsFromProduction => EditStatusId?.Trim() != "N";
+
+    /// <summary>
+    /// L'esito che vale adesso: quello dell'utente se la diagnostica e' stata rieseguita da qui,
+    /// altrimenti quello del servizio.
+    /// <para>
+    /// I due gruppi di campi non si sovrascrivono a vicenda — il servizio scrive i suoi, questa
+    /// applicazione i propri — quindi "lo stato della diagnostica" e' una lettura, non un campo.
+    /// </para>
+    /// </summary>
+    public string? DiagnosticsStatus =>
+        string.IsNullOrWhiteSpace(UsrDiagStatus) ? SvcDiagStatus : UsrDiagStatus;
+
+    /// <summary>Vero se nessuno dei due gruppi porta un esito: la diagnostica non e' mai stata eseguita.</summary>
+    public bool HasDiagnostics =>
+        !string.IsNullOrWhiteSpace(SvcDiagStatus) || !string.IsNullOrWhiteSpace(UsrDiagStatus);
+}
+
+/// <summary>
+/// Riga delle rettifiche delle barre (<c>Press.BatchBarQty</c>). <see cref="Qty"/> puo' essere
+/// negativa: e' una correzione, non una misura.
+/// </summary>
+public sealed record BatchAdjustmentRow(
+    int Id,
+    decimal BarLength,
+    string? ProdId,
+    int Qty,
+    DateTime CreatedTs);
+
+/// <summary>
+/// Riga delle transazioni di incestamento. I quattro campi da <see cref="OprNum"/> in giu' non
+/// stanno su <c>Module_ModuleTrans</c>: arrivano dall'ultimo passo lavorato del ciclo e dalla
+/// somma degli scarti.
+/// </summary>
+public sealed record ModuleTransRow(
+    long Id,
+    string ModuleId,
+    decimal? BarLength,
+    string? ProdId,
+    int Qty,
+    DateTime CreatedTs,
+    int? OprNum,
+    string? OprId,
+    string? WrkCtrId,
+    int ScrapQty);
+
+/// <summary>
+/// Riga dell'elenco ordini di produzione del lotto. Le due leghe convivono e possono differire:
+/// quella dell'ordine di vendita e quella dell'ordine di produzione.
+/// </summary>
+public sealed record BatchProdOrderRow(
+    string ProdId,
+    string? CustomerName,
+    string? SalesAlloyId,
+    string? ProdAlloyId,
+    string? HeatTreatment);
 
 /// <summary>Riga della griglia billette. Solo billette vere: i marcatori non compaiono.</summary>
 public sealed record BatchBilletRow(
@@ -97,3 +180,14 @@ public sealed record BatchBilletRow(
     decimal? Billet2Kg,
     string? ProdId,
     string? EditStatusId);
+
+/// <summary>
+/// Esito del salvataggio di un lotto.
+/// <para>
+/// <see cref="Recalculated"/> distingue due situazioni che non vanno confuse: le modifiche sono
+/// salvate in entrambi i casi, ma se il ricalcolo del MES non e' riuscito i valori di riepilogo
+/// — pesi, conteggi, tempi di ciclo — sono ancora quelli di prima. Va detto a chi ha salvato:
+/// vedrebbe numeri che non corrispondono a cio' che ha appena scritto.
+/// </para>
+/// </summary>
+public sealed record BatchSaveResult(BatchDetail Detail, bool Recalculated);

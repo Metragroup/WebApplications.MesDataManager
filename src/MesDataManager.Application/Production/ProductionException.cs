@@ -10,6 +10,14 @@ public enum ProductionErrorKind
     Validation,
     PeriodOverlap,
     Forbidden,
+
+    /// <summary>
+    /// Lo stato del dato non consente l'operazione, e non e' colpa di cio' che l'operatore ha
+    /// scritto: lotto in modifica da un altro, elaborazione in corso, lotto gia' riconciliato,
+    /// blocco perduto. Va distinto da <see cref="Validation"/> perche' non si corregge
+    /// cambiando un campo, e da <see cref="Forbidden"/> perche' non dipende dai permessi.
+    /// </summary>
+    Conflict,
 }
 
 /// <summary>
@@ -80,4 +88,66 @@ public sealed class ProductionException(
 
     public static ProductionException SaveFailed(Exception? innerException = null) =>
         new(ProductionErrorKind.Unknown, ResourceKeys.Error("SaveFailed"), innerException: innerException);
+
+    /// <summary>
+    /// Il lotto e' in modifica da un altro utente. Il messaggio riporta chi e da quando, come
+    /// nel vecchio applicativo: senza quei due dati l'operatore non sa a chi chiedere.
+    /// </summary>
+    public static ProductionException BatchLocked(string? lockUser, DateTime? lockTs) =>
+        new(
+            ProductionErrorKind.Conflict,
+            ResourceKeys.Error("BatchLocked"),
+            messageArguments: [lockUser ?? "?", lockTs?.ToString("g") ?? "?"]);
+
+    /// <summary>
+    /// L'elaborazione del lotto non e' conclusa (<c>IsBatchProcessed</c> falso): finche' le
+    /// procedure di raccolta dati ci stanno lavorando il lotto non si modifica, come nel vecchio
+    /// applicativo.
+    /// </summary>
+    public static ProductionException BatchProcessing() =>
+        new(ProductionErrorKind.Conflict, ResourceKeys.Error("BatchProcessing"));
+
+    /// <summary>Il lotto e' gia' passato all'ERP: e' lo stato terminale e congela il lotto.</summary>
+    public static ProductionException BatchAlreadyReconciled() =>
+        new(ProductionErrorKind.Conflict, ResourceKeys.Error("BatchAlreadyReconciled"));
+
+    /// <summary>
+    /// Il periodo del lotto nuovo si sovrappone a uno o piu' lotti della stessa pressa. Il
+    /// controllo del vecchio applicativo era incompleto: non vedeva il lotto nuovo che ne
+    /// inghiotte uno esistente.
+    /// </summary>
+    public static ProductionException BatchPeriodOverlap(IReadOnlyCollection<string> conflictingIds) =>
+        new(
+            ProductionErrorKind.PeriodOverlap,
+            ResourceKeys.Error("BatchPeriodOverlap"),
+            messageArguments: [string.Join(", ", conflictingIds)]);
+
+    /// <summary>
+    /// Esiste gia' un lotto con quel numero: sulla stessa pressa, nello stesso secondo. Il
+    /// numero e' pressa piu' istante, quindi e' un caso da riconoscere, non da prevenire.
+    /// </summary>
+    public static ProductionException BatchAlreadyExists() =>
+        new(ProductionErrorKind.Conflict, ResourceKeys.Error("BatchAlreadyExists"));
+
+    /// <summary>
+    /// Il servizio di diagnostica non ha risposto, o ha risposto in un modo che non si sa
+    /// leggere. Non c'e' ripiego: le regole locali del vecchio applicativo non sono state
+    /// riportate, di proposito (decisione dell'8 settembre 2026).
+    /// </summary>
+    public static ProductionException DiagnosticsUnavailable(Exception? innerException = null) =>
+        new(
+            ProductionErrorKind.Unknown,
+            ResourceKeys.Error("DiagnosticsUnavailable"),
+            innerException: innerException);
+
+    /// <summary>
+    /// Il blocco non e' piu' dell'utente: gliel'ha portato via un amministratore, oppure e'
+    /// scaduto e un altro l'ha preso. Le modifiche in sospeso sono perse, e va detto adesso e
+    /// non dopo aver finto un salvataggio riuscito.
+    /// </summary>
+    public static ProductionException BatchLockLost(string? lockUser) =>
+        new(
+            ProductionErrorKind.Conflict,
+            ResourceKeys.Error("BatchLockLost"),
+            messageArguments: [lockUser ?? "?"]);
 }

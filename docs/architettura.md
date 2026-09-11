@@ -271,6 +271,38 @@ estendere a tutta l'applicazione.
 
 ---
 
+## 7-bis. La produzione in scrittura: modifiche in sospeso e blocco su riga
+
+**Decisione.** L'area produzione non estende il catalogo dei metadati (vedi la sezione 7): sono
+servizi applicativi scritti a mano e pagine dedicate. Due scelte di impianto la distinguono dalle
+anagrafiche, e valgono per i moduli testata/righe che arriveranno.
+
+**Le modifiche in sospeso non sono entita' tracciate.** Un lotto in modifica vive in un oggetto
+dell'applicazione (`BatchEditModel`) che tiene la fotografia di partenza accanto ai valori
+correnti; le entita' EF si materializzano solo al salvataggio, dentro una transazione sola. Il
+vecchio applicativo otteneva lo stesso risultato con un contesto EF unico di sessione, che in una
+applicazione web sarebbe condiviso male e terrebbe aperta una connessione per l'intera modifica.
+
+Conseguenza utile: "c'e' qualcosa da salvare" si ottiene **confrontando** i valori con quelli di
+partenza, non alzando un flag che qualcuno deve ricordarsi di alzare a ogni cella toccata — che
+nel WinForms era il compito di un gestore della griglia.
+
+**Il blocco e' pessimistico e sta a database.** `Batch.IsLock`/`Lock_Usr`/`Lock_Ts`, come prima,
+con tre differenze imposte dal web: si prende con **una sola istruzione condizionata** (leggere e
+poi scrivere lascia la finestra in cui due utenti passano entrambi il controllo), si rilascia alla
+dismissione del circuito, e **scade dopo 60 minuti** — perche' nel web la sessione muore in
+silenzio e il blocco orfano sarebbe la norma. La scadenza vale per gli altri: chi possiede il
+blocco continua a salvare anche oltre l'ora, se nessuno gliel'ha portato via.
+
+**Le procedure lunghe del MES stanno fuori dalla transazione.** `usp_Batch_Elab` impiega ~35
+secondi per lotto (misurato): dentro la transazione terrebbe i lock su tabelle su cui la raccolta
+dati scrive di continuo. Si commette prima e si richiama dopo, con un timeout esplicito, e
+l'esito del salvataggio distingue "salvato" da "salvato ma non ricalcolato". E' anche il motivo
+per cui i valori derivati — pesi, conteggi, tempi di ciclo — non si calcolano qui: si rileggono
+dopo la procedura.
+
+---
+
 ## 8. Entra ID, con ruoli applicativi e non gruppi
 
 **Decisione.** Autenticazione OpenID Connect verso Microsoft Entra ID. I permessi derivano dai
@@ -408,7 +440,26 @@ Onesta' sullo stato di questa consegna, perche' incide su come leggerla.
   test e poi annullati. Verificata anche la traduzione dei codici di errore: chiave duplicata
   (2627) e violazione di chiave esterna (547) arrivano alla UI come messaggi localizzati.
 
+**Verificato (9 settembre 2026), area produzione in scrittura.**
+
+- **Il modulo lotti**, tutte le nove fasi di `piano-modifica-lotto.md`: blocco, modifica di
+  testata e billette, rettifiche, salvataggio in transazione, diagnostica, creazione,
+  eliminazione e chiusura forzata. Le scritture provate su `MES40_RDP_TEST` dentro una
+  transazione poi annullata; il servizio di diagnostica interrogato davvero.
+- **480 test** in `tests/MesDataManager.Tests` (erano 190). Fra i nuovi, quelli che verificano
+  la mappatura **come la vede SQL Server** senza connettersi: il tipo delle colonne di
+  diagnostica e lo schema `Press` delle tabelle di lotto — la classe di errore piu' costosa di
+  questo progetto e' proprio quella che SQLite non riproduce.
+- **Le misure che hanno cambiato il progetto** sono in `piano-modifica-lotto.md`, sezione 5:
+  `usp_Batch_Elab` a ~35 secondi per lotto, la dimensione reale di una risposta di diagnostica,
+  la distribuzione degli stati d'uso delle matrici.
+
 **Non verificato.**
+
+- **L'interfaccia della modifica del lotto in un browser.** La prova di accensione serve le
+  pagine e la scheda si disegna, ma esercita solo il primo rendering: modifica in linea delle
+  billette, comandi della barra e salvataggio passano da un circuito interattivo che nessun test
+  attraversa (voce B2 delle decisioni aperte, invariata). Da provare a mano prima dell'esercizio.
 
 - **Il percorso interattivo dell'autenticazione.** L'identita' letta da
   `AuthenticationStateProvider` e' verificata nel rendering lato server; il comportamento a

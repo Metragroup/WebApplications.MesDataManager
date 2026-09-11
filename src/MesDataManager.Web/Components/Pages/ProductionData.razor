@@ -2,6 +2,9 @@
 
 @inject IBatchService Batches
 @inject ILookupProvider Lookups
+@inject IUserContext User
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
 @inject IStringLocalizer<Strings> L
 @inject NavigationManager Navigation
 @inject ProtectedLocalStorage Storage
@@ -96,6 +99,68 @@
        compaiono dopo, invece di inserirle al posto dichiarato — attivando il dettaglio a
        griglia viva, le quattro colonne finivano in coda alla riga. Stessa ragione della chiave
        su Archive.razor. *@
+    @* Barra comandi al posto del menu contestuale del vecchio applicativo: i comandi si
+       abilitano da soli secondo quante righe sono selezionate, cosi' la regola "attivo su
+       selezione singola" si vede prima di provarci. *@
+    @if (_permissions.CanEditProduction)
+    {
+        <div class="mes-billets__toolbar">
+            <MudButton StartIcon="@Icons.Material.Outlined.PlaylistAddCheck"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Size="Size.Small"
+                       Disabled="@(_selected.Count == 0 || _working)"
+                       OnClick="@(() => MarkAsync(marked: true))">
+                @L["Action.MarkForErp"]
+            </MudButton>
+
+            <MudButton StartIcon="@Icons.Material.Outlined.PlaylistRemove"
+                       Variant="Variant.Text"
+                       Size="Size.Small"
+                       Disabled="@(_selected.Count == 0 || _working)"
+                       OnClick="@(() => MarkAsync(marked: false))">
+                @L["Action.UnmarkForErp"]
+            </MudButton>
+
+            <MudButton StartIcon="@Icons.Material.Outlined.OpenInNew"
+                       Variant="Variant.Text"
+                       Size="Size.Small"
+                       Disabled="@(_selected.Count != 1 || _working)"
+                       OnClick="OpenSelected">
+                @L["Action.OpenBatch"]
+            </MudButton>
+
+            <MudButton StartIcon="@Icons.Material.Outlined.Add"
+                       Variant="Variant.Text"
+                       Size="Size.Small"
+                       Disabled="_working"
+                       OnClick="NewBatchAsync">
+                @L["Action.NewBatch"]
+            </MudButton>
+
+            <MudButton StartIcon="@Icons.Material.Outlined.LockClock"
+                       Variant="Variant.Text"
+                       Size="Size.Small"
+                       Disabled="@(_selected.Count != 1 || _working)"
+                       OnClick="ForceCloseAsync">
+                @L["Action.ForceClose"]
+            </MudButton>
+
+            <MudButton StartIcon="@Icons.Material.Outlined.DeleteForever"
+                       Variant="Variant.Text"
+                       Color="Color.Error"
+                       Size="Size.Small"
+                       Disabled="@(_selected.Count != 1 || _working)"
+                       OnClick="DeleteAsync">
+                @L["Action.DeleteBatch"]
+            </MudButton>
+
+            <MudText Typo="Typo.caption" Class="ml-auto">
+                @L["Msg.BatchesSelected", _selected.Count]
+            </MudText>
+        </div>
+    }
+
     <MudDataGrid @ref="_grid"
                  @key="_lengthDetailShown"
                  T="ProductionBatchRow"
@@ -109,6 +174,10 @@
                  Class="mes-grid"
                  RowClass="mes-row--clickable"
                  RowClassFunc="@RowClass"
+                 MultiSelection="@_permissions.CanEditProduction"
+                 SelectedItems="_selected"
+                 SelectedItemsChanged="@(s => _selected = s)"
+                 SelectOnRowClick="false"
                  @bind-CurrentPage="_page"
                  @bind-RowsPerPage="_rowsPerPage"
                  RowClick="@(args => Open(args.Item))"
@@ -118,6 +187,11 @@
         </NoRecordsContent>
 
         <Columns>
+            @if (_permissions.CanEditProduction)
+            {
+                <SelectColumn T="ProductionBatchRow" />
+            }
+
             <PropertyColumn T="ProductionBatchRow" TProperty="string"
                             Property="r => r.PressId"
                             Title="@L["Field.PressId"]"
@@ -236,6 +310,14 @@
 
     private IReadOnlyList<LookupItem> _presses = [];
 
+    private UserPermissions _permissions = UserPermissions.Anonymous;
+
+    /// <summary>Righe selezionate: e' su queste che agiscono i comandi della barra.</summary>
+    private HashSet<ProductionBatchRow> _selected = [];
+
+    /// <summary>Un comando che scrive e' in corso.</summary>
+    private bool _working;
+
     private string _pressId = Any;
     private BatchTypeFilter _type = BatchTypeFilter.Any;
 
@@ -309,6 +391,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _permissions = await User.GetCurrentAsync();
+
         RestoreFilters();
 
         // Se la modalita' arriva dall'indirizzo — e' il caso del ritorno da una scheda — decide
@@ -316,6 +400,229 @@
         _preferencesLoaded = LengthDetailQuery is not null;
 
         await LoadFiltersAsync();
+    }
+
+    // ------------------------------------------------------------------ comandi
+
+    /// <summary>
+    /// Segna o annulla la marcatura per la riconciliazione sui lotti selezionati. Il resoconto
+    /// dei lotti saltati non e' un dettaglio: chi ne seleziona quaranta e ne marca trentasette
+    /// deve sapere quali tre sono rimasti indietro, altrimenti li considera fatti.
+    /// </summary>
+    private async Task MarkAsync(bool marked)
+    {
+        if (_selected.Count == 0 || _working)
+        {
+            return;
+        }
+
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            marked ? L["Msg.MarkConfirmTitle"] : L["Msg.UnmarkConfirmTitle"],
+            marked
+                ? L["Msg.MarkConfirmText", _selected.Count]
+                : L["Msg.UnmarkConfirmText", _selected.Count],
+            yesText: marked ? L["Action.MarkForErp"] : L["Action.UnmarkForErp"],
+            cancelText: L["Action.Cancel"]);
+
+        if (confirmed is not true)
+        {
+            return;
+        }
+
+        _working = true;
+
+        try
+        {
+            var ids = _selected.Select(r => r.BatchId).ToList();
+            var result = await Batches.MarkForErpAsync(ids, marked);
+
+            Snackbar.Add(L["Msg.MarkDone", result.Marked], Severity.Success);
+
+            if (result.Skipped.Count > 0)
+            {
+                Snackbar.Add(
+                    L["Msg.MarkSkipped", result.Skipped.Count, SkipSummary(result.Skipped)],
+                    Severity.Warning);
+            }
+
+            await ReloadAsync();
+        }
+        catch (ProductionException ex)
+        {
+            Snackbar.Add(ex.Localize(L), Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Marcatura per la riconciliazione non riuscita.");
+            Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    /// <summary>I motivi dei salti, raggruppati: "2 senza diagnostica, 1 in modifica".</summary>
+    private string SkipSummary(IReadOnlyList<BatchMarkSkip> skipped) =>
+        string.Join(
+            ", ",
+            skipped
+                .GroupBy(s => s.Reason)
+                .Select(g => $"{g.Count()} {SkipReason(g.Key)}"));
+
+    private string SkipReason(BatchMarkSkipReason reason) => reason switch
+    {
+        BatchMarkSkipReason.NoDiagnostics => L["Msg.SkipNoDiagnostics"],
+        BatchMarkSkipReason.DiagnosticsError => L["Msg.SkipDiagnosticsError"],
+        BatchMarkSkipReason.AlreadyImported => L["Msg.SkipAlreadyImported"],
+        BatchMarkSkipReason.Locked => L["Msg.SkipLocked"],
+        _ => L["Msg.SkipNotFound"],
+    };
+
+    private void OpenSelected()
+    {
+        if (_selected.SingleOrDefault() is { } row)
+        {
+            Open(row);
+        }
+    }
+
+    private async Task NewBatchAsync()
+    {
+        var parameters = new DialogParameters<NewBatchDialog>
+        {
+            { d => d.DefaultPressId, _pressId == Any ? null : _pressId },
+        };
+
+        var dialog = await Dialogs.ShowAsync<NewBatchDialog>(string.Empty, parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: string batchId })
+        {
+            Snackbar.Add(L["Msg.NewBatchCreated", batchId], Severity.Success);
+            await ReloadAsync();
+        }
+    }
+
+    /// <summary>
+    /// Elimina il lotto selezionato. Due conferme: la prima riporta numero e matrice, la seconda
+    /// compare solo se il lotto viene dalla produzione — perche' in quel caso si cancellano dati
+    /// rilevati dalla pressa, non una ricostruzione fatta a mano.
+    /// </summary>
+    private async Task DeleteAsync()
+    {
+        if (_selected.SingleOrDefault() is not { } row || _working)
+        {
+            return;
+        }
+
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            L["Msg.DeleteBatchConfirmTitle"],
+            L["Msg.DeleteBatchConfirmText", row.BatchId, row.DieId ?? "—"],
+            yesText: L["Action.DeleteBatch"],
+            cancelText: L["Action.Cancel"]);
+
+        if (confirmed is not true)
+        {
+            return;
+        }
+
+        _working = true;
+
+        try
+        {
+            // Lo stato di modifica non sta nella riga dell'elenco: si legge dalla scheda, che
+            // serve comunque a sapere se il lotto e' ancora eliminabile.
+            var detail = await Batches.GetDetailAsync(row.BatchId);
+
+            if (detail.IsFromProduction)
+            {
+                var second = await Dialogs.ShowMessageBoxAsync(
+                    L["Msg.DeleteProductionBatchTitle"],
+                    L["Msg.DeleteProductionBatchText"],
+                    yesText: L["Action.DeleteBatch"],
+                    cancelText: L["Action.Cancel"]);
+
+                if (second is not true)
+                {
+                    return;
+                }
+            }
+
+            await Batches.DeleteAsync(row.BatchId);
+
+            Snackbar.Add(L["Msg.BatchDeleted", row.BatchId], Severity.Success);
+            _selected = [];
+            await ReloadAsync();
+        }
+        catch (ProductionException ex)
+        {
+            Snackbar.Add(ex.Localize(L), Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Eliminazione del lotto {Batch} non riuscita.", row.BatchId);
+            Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    private async Task ForceCloseAsync()
+    {
+        if (_selected.SingleOrDefault() is not { } row || _working)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<BatchForceCloseDialog>
+        {
+            { d => d.BatchId, row.BatchId },
+            { d => d.PressClosed, row.IsErpImported },
+        };
+
+        var dialog = await Dialogs.ShowAsync<BatchForceCloseDialog>(string.Empty, parameters);
+        var result = await dialog.Result;
+
+        if (result is not { Canceled: false, Data: (bool press, bool saw) })
+        {
+            return;
+        }
+
+        _working = true;
+
+        try
+        {
+            await Batches.ForceCloseAsync(row.BatchId, press, saw);
+            Snackbar.Add(L["Msg.ForceCloseDone"], Severity.Success);
+            await ReloadAsync();
+        }
+        catch (ProductionException ex)
+        {
+            Snackbar.Add(ex.Localize(L), Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Chiusura forzata del lotto {Batch} non riuscita.", row.BatchId);
+            Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    /// <summary>Ricarica l'elenco e libera la selezione, che riferiva le righe di prima.</summary>
+    private async Task ReloadAsync()
+    {
+        _selected = [];
+
+        if (_grid is { } grid)
+        {
+            await grid.ReloadServerData();
+        }
     }
 
     /// <summary>

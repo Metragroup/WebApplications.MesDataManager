@@ -79,6 +79,21 @@ public sealed class LookupProvider(
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false),
 
+            // Causali di chiusura del lotto: solo le attive, in ordine di posizione, come
+            // FrmChangeClosingReason del vecchio applicativo. Nota la differenza dalle causali
+            // di fermo: qui IsActive_Master non si filtra, ed e' deliberato — quelle causali non
+            // arrivano dall'ERP.
+            LookupKeys.BatchClosingReasons => await context.PressBatchClosingReasons
+                .AsNoTracking()
+                .Where(r => r.IsActive)
+                .OrderBy(r => r.Position)
+                .ThenBy(r => r.Description)
+                .Select(r => new LookupItem(
+                    r.PressBatchClosingReasonId.ToString(),
+                    r.Description))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false),
+
             _ => [],
         };
 

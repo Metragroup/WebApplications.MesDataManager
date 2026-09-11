@@ -91,7 +91,10 @@ public sealed class ProductionLocalizationTests
     {
         _ when type == typeof(string) => "PressId",
         _ when type == typeof(int) => 0,
+        _ when type == typeof(DateTime) => new DateTime(2026, 9, 1),
+        _ when type == typeof(DateTime?) => new DateTime(2026, 9, 1),
         _ when type == typeof(IReadOnlyCollection<int>) => new[] { 1 },
+        _ when type == typeof(IReadOnlyCollection<string>) => new[] { "MP1260901080000" },
         _ => null,
     };
 

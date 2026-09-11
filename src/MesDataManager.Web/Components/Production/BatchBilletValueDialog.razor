@@ -1,0 +1,206 @@
+@inject IStringLocalizer<Strings> L
+@inject IBatchService Batches
+@inject ILogger<BatchBilletValueDialog> Logger
+
+@*
+    Un valore da applicare alle billette selezionate: colata, lunghezza barra, lunghezza billetta
+    o ordine di produzione.
+
+    Nel vecchio applicativo erano quattro finestre distinte (FrmChangeCasting, FrmChangeLength due
+    volte, FrmChangeProdId) che facevano la stessa cosa con etichette diverse. Qui e' un controllo
+    solo, parametrico: il campo cambia, il gesto no.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@Title</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4">
+            @L["Msg.ApplyToSelected", Count]
+        </MudText>
+
+        @if (IsNumeric)
+        {
+            <MudNumericField T="decimal?" @bind-Value="_number"
+                             Label="@Title"
+                             Variant="Variant.Outlined"
+                             Margin="Margin.Dense"
+                             Min="0"
+                             Immediate="true" />
+        }
+        else
+        {
+            <MudTextField @bind-Value="_text"
+                          @bind-Value:after="Reset"
+                          Label="@Title"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Immediate="true" />
+        }
+
+        @* La colata porta con se' la lega: si mostra appena il codice risulta esistente, perche'
+           e' il dato che l'operatore vuole vedere confermato. *@
+        @if (Field == BilletField.Casting && _alloy is not null)
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true" Class="mt-4">
+                @L["Field.Alloy"]: @_alloy
+            </MudAlert>
+        }
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mt-4">
+                @_error
+            </MudAlert>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_working">@L["Action.Cancel"]</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ApplyAsync" Disabled="_working">
+            @if (_working)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @L["Action.Apply"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; } = default!;
+
+    /// <summary>Quale dato si sta cambiando.</summary>
+    [Parameter]
+    public BilletField Field { get; set; }
+
+    /// <summary>Quante billette sono selezionate: va detto prima di applicare.</summary>
+    [Parameter]
+    public int Count { get; set; }
+
+    /// <summary>Valore attuale, se le billette selezionate ne hanno uno in comune.</summary>
+    [Parameter]
+    public string? CurrentValue { get; set; }
+
+    private string? _text;
+    private decimal? _number;
+    private string? _alloy;
+    private string? _error;
+    private bool _working;
+
+    private bool IsNumeric => Field is BilletField.BarLength or BilletField.BilletLength;
+
+    private string Title => Field switch
+    {
+        BilletField.Casting => L["Field.Casting"],
+        BilletField.BarLength => L["Field.MmBarSet"],
+        BilletField.BilletLength => L["Field.MmBilletAct"],
+        _ => L["Field.ProdId"],
+    };
+
+    protected override void OnInitialized()
+    {
+        if (IsNumeric)
+        {
+            _number = decimal.TryParse(CurrentValue, CultureInfo.CurrentCulture, out var value)
+                ? value
+                : null;
+        }
+        else
+        {
+            _text = CurrentValue;
+        }
+    }
+
+    private void Reset()
+    {
+        _alloy = null;
+        _error = null;
+    }
+
+    private async Task ApplyAsync()
+    {
+        _working = true;
+        _error = null;
+
+        try
+        {
+            var result = await BuildResultAsync();
+
+            if (result is not null)
+            {
+                Dialog.Close(DialogResult.Ok(result));
+            }
+        }
+        catch (ProductionException ex)
+        {
+            _error = ex.Localize(L);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Applicazione del valore alle billette non riuscita.");
+            _error = L["Error.UnexpectedError"];
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    /// <summary>
+    /// Convalida il valore e prepara l'esito. Colata e ordine di produzione si controllano
+    /// contro il database, come nel vecchio applicativo: un codice inventato non deve finire
+    /// sulle billette.
+    /// </summary>
+    private async Task<BilletValueResult?> BuildResultAsync()
+    {
+        switch (Field)
+        {
+            case BilletField.Casting:
+                if (string.IsNullOrWhiteSpace(_text))
+                {
+                    _error = L["Error.RequiredField"];
+                    return null;
+                }
+
+                var casting = await Batches.FindCastingAsync(_text);
+                if (casting is null)
+                {
+                    _error = L["Error.CastingNotFound"];
+                    return null;
+                }
+
+                _alloy = casting.AlloyId;
+                return new BilletValueResult(Field, casting.Code, casting.AlloyId, null);
+
+            case BilletField.ProdOrder:
+                // Vuoto e' ammesso: significa togliere l'ordine dalla billetta.
+                if (string.IsNullOrWhiteSpace(_text))
+                {
+                    return new BilletValueResult(Field, null, null, null);
+                }
+
+                if (!await Batches.ProdOrderExistsAsync(_text))
+                {
+                    _error = L["Error.ProdOrderNotFound"];
+                    return null;
+                }
+
+                return new BilletValueResult(Field, _text.Trim().ToUpperInvariant(), null, null);
+
+            default:
+                if (_number is not { } number || number <= 0)
+                {
+                    _error = L["Error.InvalidValue"];
+                    return null;
+                }
+
+                return new BilletValueResult(Field, null, null, number);
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

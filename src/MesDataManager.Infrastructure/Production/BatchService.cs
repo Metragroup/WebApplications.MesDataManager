@@ -4,12 +4,18 @@ using MesDataManager.Domain.Entities;
 using MesDataManager.Infrastructure.Persistence;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace MesDataManager.Infrastructure.Production;
 
 /// <summary>
-/// Lettura dei lotti di estrusione. Stesso impianto di <see cref="MachineDowntimeService"/>: un
-/// contesto per operazione dalla factory, <c>AsNoTracking</c> e query scritte a mano.
+/// Lotti di estrusione: lettura, blocco, modifica e comandi. La classe e' divisa in file
+/// parziali per responsabilita' — blocco, controlli, salvataggio, comandi — e questo tiene le
+/// letture.
+/// <para>
+/// Stesso impianto di <see cref="MachineDowntimeService"/>: un contesto per operazione dalla
+/// factory, <c>AsNoTracking</c> e query scritte a mano.
+/// </para>
 /// <para>
 /// Due condizioni del filtro non sono dettagli tecnici ma regole riprese dal vecchio applicativo
 /// (<c>RepositoryService.GetPendingBatches</c>): il lotto deve avere almeno una billetta vera —
@@ -19,10 +25,26 @@ namespace MesDataManager.Infrastructure.Production;
 /// cominciando con la sigla della pressa raggruppava per pressa prima che per data.
 /// </para>
 /// </summary>
-public sealed class BatchService(
+public sealed partial class BatchService(
     IDbContextFactory<MesDbContext> contextFactory,
-    IUserContext user) : IBatchService
+    IUserContext user,
+    ILogger<BatchService> logger) : IBatchService
 {
+    /// <summary>
+    /// Lunghezza di <c>Batch.Lock_Usr</c> a database. Un UPN piu' lungo viene troncato invece di
+    /// far fallire il blocco: e' un'etichetta da mostrare, non una chiave.
+    /// </summary>
+    private const int LockUserMaxLength = 50;
+
+    /// <summary>
+    /// Quanto si concede alle procedure di ricalcolo del MES. Il valore predefinito
+    /// dell'applicazione e' 30 secondi e non basta: <c>usp_Batch_Elab</c> ne impiega circa 35 per
+    /// lotto (vedi <see cref="RecalculateAsync"/>). Tre minuti lasciano margine per un lotto con
+    /// molte billette senza restare appesi in eterno.
+    /// </summary>
+    private static readonly TimeSpan RecalculationTimeout = TimeSpan.FromMinutes(3);
+
+
     public async Task<BatchPage> GetPageAsync(
         BatchListQuery query,
         CancellationToken cancellationToken = default)
@@ -62,7 +84,11 @@ public sealed class BatchService(
                 b.PressClosedTs,
                 b.IsSawClosed,
                 b.SawClosedTs,
-                b.DiagnosticsStatus == null ? null : b.DiagnosticsStatus.TrimEnd(),
+                // L'esito che vale e' quello dell'utente se c'e', altrimenti quello del servizio:
+                // i due gruppi di campi non si sovrascrivono a vicenda.
+                b.UsrDiagStatus == null
+                    ? (b.SvcDiagStatus == null ? null : b.SvcDiagStatus.TrimEnd())
+                    : b.UsrDiagStatus.TrimEnd(),
                 b.IsLock))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -122,10 +148,26 @@ public sealed class BatchService(
 
         var batch = header.Batch;
 
+        var adjustments = await AdjustmentsAsync(context, batchId, cancellationToken).ConfigureAwait(false);
+
+        var moduleTransactions = await ModuleTransactionsAsync(
+            context,
+            batchId,
+            batch.PressId,
+            cancellationToken).ConfigureAwait(false);
+
+        var productionOrders = await ProductionOrdersAsync(context, batchId, cancellationToken)
+            .ConfigureAwait(false);
+
+        var allowAdjustments = await AllowAdjustmentsAsync(context, cancellationToken).ConfigureAwait(false);
+
         return new BatchDetail(
             batch.BatchId,
             batch.PressId,
             batch.DieId,
+            batch.DieCode?.TrimEnd(),
+            batch.DieNumber,
+            batch.PressBatchClosingReasonId,
             batch.BilletCount,
             billets.Count,
             batch.BarCount,
@@ -142,6 +184,8 @@ public sealed class BatchService(
             batch.IsErpImported,
             batch.IsLock,
             batch.LockUsr,
+            batch.LockTs,
+            batch.EditStatusId?.TrimEnd(),
             batch.KgRaw,
             batch.KgSheared,
             batch.KgExtruded,
@@ -150,10 +194,154 @@ public sealed class BatchService(
             batch.ItemMeterWeightMes,
             batch.ItemMeterWeightTest,
             batch.ItemMeterWeight,
-            batch.DiagnosticsStatus?.TrimEnd(),
-            batch.DiagnosticsTs,
-            batch.DiagnosticsMsg,
-            billets);
+            batch.SvcDiagStatus?.TrimEnd(),
+            batch.SvcDiagTs,
+            batch.SvcDiagMsg,
+            batch.SvcDiagJson,
+            batch.UsrDiagStatus?.TrimEnd(),
+            batch.UsrDiagTs,
+            batch.UsrDiagMsg,
+            batch.UsrDiagJson,
+            billets,
+            adjustments,
+            moduleTransactions,
+            productionOrders,
+            allowAdjustments);
+    }
+
+
+    /// <summary>Rettifiche delle barre del lotto, dalla piu' vecchia come nel vecchio applicativo.</summary>
+    private static async Task<IReadOnlyList<BatchAdjustmentRow>> AdjustmentsAsync(
+        MesDbContext context,
+        string batchId,
+        CancellationToken cancellationToken) =>
+        await context.BatchBarQties
+            .AsNoTracking()
+            .Where(x => x.BatchId == batchId)
+            .OrderBy(x => x.CreatedTs)
+            .Select(x => new BatchAdjustmentRow(
+                x.BatchBarQtyId,
+                x.BarLength,
+                x.ProdId == null ? null : x.ProdId.TrimEnd(),
+                x.Qty,
+                x.CreatedTs))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+    /// <summary>
+    /// Transazioni di incestamento del lotto. Numero operazione, operazione e centro di lavoro
+    /// vengono dall'<b>ultimo passo lavorato</b> del ciclo della cesta e la quantita' di scarto
+    /// dalla somma degli scarti: nessuno dei quattro sta su <c>Module_ModuleTrans</c>. Stessa
+    /// composizione di <c>RepositoryService.GetModuleTransDtos</c>, ma in una sola query invece
+    /// di tre piu' un ciclo in memoria.
+    /// </summary>
+    private static async Task<IReadOnlyList<ModuleTransRow>> ModuleTransactionsAsync(
+        MesDbContext context,
+        string batchId,
+        string pressId,
+        CancellationToken cancellationToken) =>
+        await (
+            from t in context.ModuleTransactions.AsNoTracking()
+            where t.BatchId == batchId && t.PressId == pressId
+            orderby t.CreatedTs, t.ModuleTransId
+            let lastRoute = context.ModuleTransRoutes
+                .Where(r => r.ModuleTransId == t.ModuleTransId && r.IsProcessed)
+                .OrderByDescending(r => r.OprNumPriority)
+                .FirstOrDefault()
+            select new ModuleTransRow(
+                t.ModuleTransId,
+                t.ModuleId,
+                t.BarLength,
+                t.ProdId,
+                t.Qty,
+                t.CreatedTs,
+                lastRoute == null ? null : lastRoute.OprNum,
+                lastRoute == null ? null : lastRoute.OprId,
+                lastRoute == null ? null : lastRoute.WrkCtrId,
+                context.ModuleTransScraps
+                    .Where(s => s.ModuleTransId == t.ModuleTransId)
+                    .Sum(s => s.Qty)))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+    /// <summary>
+    /// Ordini di produzione del lotto, su due livelli: prima quelli associati alle billette, e
+    /// solo se non ce n'e' nessuno quelli rilasciati sul lotto all'avvio dell'estrusione
+    /// (<c>RepositoryService.GetBatchProductionTags</c>).
+    /// <para>
+    /// I dati anagrafici dell'ordine sono un join a <b>sinistra</b>: un ordine collegato al lotto
+    /// ma non presente fra i cartellini dell'ERP deve comunque comparire, col solo numero. La
+    /// vecchia scheda lo perdeva, perche' partiva dai cartellini.
+    /// </para>
+    /// </summary>
+    private static async Task<IReadOnlyList<BatchProdOrderRow>> ProductionOrdersAsync(
+        MesDbContext context,
+        string batchId,
+        CancellationToken cancellationToken)
+    {
+        var prodIds = await context.BatchBilletProdOrders
+            .AsNoTracking()
+            .Where(o => o.BatchId == batchId && o.ProdId != "")
+            .Select(o => o.ProdId)
+            .Distinct()
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (prodIds.Count == 0)
+        {
+            prodIds = await context.BatchProdOrders
+                .AsNoTracking()
+                .Where(o => o.BatchId == batchId && o.ProdId != "")
+                .Select(o => o.ProdId)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (prodIds.Count == 0)
+        {
+            return [];
+        }
+
+        // Gli ordini di un lotto sono una manciata: i cartellini si leggono in un colpo e
+        // l'abbinamento avviene qui. Un join a sinistra lato database costringerebbe a portare
+        // la lista degli ordini nella query, che EF non sa fare come radice.
+        var tags = await context.ProductionTags
+            .AsNoTracking()
+            .Where(t => prodIds.Contains(t.ProdId))
+            .ToDictionaryAsync(t => t.ProdId, cancellationToken)
+            .ConfigureAwait(false);
+
+        return [.. prodIds
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .Select(id => tags.TryGetValue(id, out var tag)
+                ? new BatchProdOrderRow(
+                    id,
+                    tag.CustName,
+                    tag.SalesAlloyId,
+                    tag.ProdAlloyId,
+                    tag.SalesHeatTreatment)
+                : new BatchProdOrderRow(id, null, null, null, null))];
+    }
+
+    /// <summary>
+    /// Se la sega ammette rettifiche, dalla prima societa' attiva come nel vecchio applicativo
+    /// (<c>RepositoryService.GetCompany</c>). L'ordinamento e' aggiunto qui: <c>First</c> senza
+    /// ordine su piu' societa' attive restituirebbe una riga a caso.
+    /// </summary>
+    private static async Task<bool> AllowAdjustmentsAsync(
+        MesDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var allowed = await context.Companies
+            .AsNoTracking()
+            .Where(c => c.IsActive)
+            .OrderBy(c => c.CompanyId)
+            .Select(c => c.SawAllowAdjustments)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return allowed ?? false;
     }
 
     public async Task<ProductionBatchPage> GetProductionPageAsync(
@@ -255,7 +443,7 @@ public sealed class BatchService(
                 b.IsErpMarked,
                 b.IsErpImported,
                 b.IsLock,
-                b.DiagnosticsStatus == null ? null : b.DiagnosticsStatus.TrimEnd()))
+                b.UsrDiagStatus == null ? (b.SvcDiagStatus == null ? null : b.SvcDiagStatus.TrimEnd()) : b.UsrDiagStatus.TrimEnd()))
             .Skip((query.PageNumber - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToListAsync(cancellationToken)

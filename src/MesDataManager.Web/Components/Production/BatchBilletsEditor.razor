@@ -1,0 +1,451 @@
+@inject IStringLocalizer<Strings> L
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject ILogger<BatchBilletsEditor> Logger
+
+@*
+    Le billette del lotto in modalita' modifica: griglia con selezione multipla e barra comandi.
+
+    Rispetto al vecchio applicativo cambia il gesto, non la funzione. Al posto del menu contestuale
+    c'e' una barra i cui comandi si abilitano da soli in base a quante righe sono selezionate,
+    cosi' la regola "attivo su selezione singola" si vede prima di provarci.
+
+    Cosa si modifica dove:
+    - i numeri (numero billetta, lunghezze, chilogrammi) si scrivono nella cella;
+    - istanti, colata e ordine di produzione passano da un controllo, perche' vanno convalidati
+      oppure — per gli istanti — perche' un selettore di data dentro una cella non si usa.
+*@
+
+<div class="mes-billets">
+    <div class="mes-billets__toolbar">
+        <MudButton StartIcon="@Icons.Material.Outlined.Add"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Size="Size.Small"
+                   OnClick="AddAsync">
+            @L["Action.Add"]
+        </MudButton>
+
+        @* Duplica: una riga sola, come nel vecchio applicativo — si ricalca una billetta, e non
+           si saprebbe quale fra due. *@
+        <MudButton StartIcon="@Icons.Material.Outlined.ContentCopy"
+                   Variant="Variant.Text"
+                   Size="Size.Small"
+                   Disabled="@(_selected.Count != 1)"
+                   OnClick="DuplicateAsync">
+            @L["Action.Duplicate"]
+        </MudButton>
+
+        <MudButton StartIcon="@Icons.Material.Outlined.Delete"
+                   Variant="Variant.Text"
+                   Color="Color.Error"
+                   Size="Size.Small"
+                   Disabled="@(_selected.Count == 0)"
+                   OnClick="RemoveAsync">
+            @L["Action.Remove"]
+        </MudButton>
+
+        <MudButton StartIcon="@Icons.Material.Outlined.FormatListNumbered"
+                   Variant="Variant.Text"
+                   Size="Size.Small"
+                   Disabled="@(_selected.Count == 0)"
+                   OnClick="RenumberAsync">
+            @L["Action.Renumber"]
+        </MudButton>
+
+        <MudMenu StartIcon="@Icons.Material.Outlined.Edit"
+                 Label="@L["Action.EditSelected"]"
+                 Variant="Variant.Text"
+                 Size="Size.Small"
+                 Disabled="@(_selected.Count == 0)">
+            <MudMenuItem OnClick="@(() => ApplyValueAsync(BilletField.Casting))">@L["Field.Casting"]</MudMenuItem>
+            <MudMenuItem OnClick="@(() => ApplyValueAsync(BilletField.BarLength))">@L["Field.MmBarSet"]</MudMenuItem>
+            <MudMenuItem OnClick="@(() => ApplyValueAsync(BilletField.BilletLength))">@L["Field.MmBilletAct"]</MudMenuItem>
+            <MudMenuItem OnClick="@(() => ApplyValueAsync(BilletField.ProdOrder))">@L["Field.ProdId"]</MudMenuItem>
+        </MudMenu>
+
+        <MudText Typo="Typo.caption" Class="ml-auto">
+            @L["Msg.BilletsSelected", _selected.Count]
+        </MudText>
+    </div>
+
+    <MudDataGrid T="BatchBilletEdit"
+                 Items="Edit.Billets"
+                 MultiSelection="true"
+                 SelectedItems="_selected"
+                 SelectedItemsChanged="OnSelectionChanged"
+                 SelectOnRowClick="false"
+                 ReadOnly="false"
+                 EditMode="DataGridEditMode.Cell"
+                 EditTrigger="DataGridEditTrigger.OnRowClick"
+                 CommittedItemChanged="OnCommitted"
+                 Dense="true"
+                 Hover="true"
+                 Striped="true"
+                 Bordered="false"
+                 Elevation="0"
+                 Class="mes-table">
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Class="pa-4">@L["Msg.NoRecords"]</MudText>
+        </NoRecordsContent>
+
+        <Columns>
+            <SelectColumn T="BatchBilletEdit" />
+
+            <PropertyColumn T="BatchBilletEdit" TProperty="short"
+                            Property="b => b.BilletNo"
+                            Title="@L["Field.BilletNo"]"
+                            Sortable="false"
+                            CellClass="mes-cell--number" />
+
+            <TemplateColumn T="BatchBilletEdit" Title="@L["Field.BatchStart"]" Sortable="false" Editable="false">
+                <CellTemplate>
+                    <span class="mes-cell--times">
+                        @Timestamp(context.Item.StartTs)
+                        <MudIconButton Icon="@Icons.Material.Outlined.Schedule"
+                                       Size="Size.Small"
+                                       aria-label="@L["Msg.BilletTimesTitle", context.Item.BilletNo]"
+                                       OnClick="@(() => ChangeTimesAsync(context.Item))" />
+                    </span>
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="BatchBilletEdit" Title="@L["Field.BatchStop"]" Sortable="false" Editable="false">
+                <CellTemplate>@Timestamp(context.Item.StopTs)</CellTemplate>
+            </TemplateColumn>
+
+            <PropertyColumn T="BatchBilletEdit" TProperty="string"
+                            Property="@(b => b.ShiftId ?? "—")"
+                            Title="@L["Field.ShiftId"]"
+                            Sortable="false"
+                            Editable="false" />
+
+            <PropertyColumn T="BatchBilletEdit" TProperty="decimal?"
+                            Property="b => b.MmBarSet"
+                            Title="@L["Field.MmBarSet"]"
+                            Sortable="false"
+                            CellClass="mes-cell--number" />
+
+            <PropertyColumn T="BatchBilletEdit" TProperty="int?"
+                            Property="b => b.MmBilletAct"
+                            Title="@L["Field.MmBilletAct"]"
+                            Sortable="false"
+                            CellClass="mes-cell--number" />
+
+            <PropertyColumn T="BatchBilletEdit" TProperty="decimal?"
+                            Property="b => b.KgExtruded"
+                            Title="@L["Field.KgExtruded"]"
+                            Sortable="false"
+                            CellClass="mes-cell--number" />
+
+            @* Colata e lega del primo troncone: la colata si cambia dal comando, la lega ne
+               deriva e non si tocca. *@
+            <PropertyColumn T="BatchBilletEdit" TProperty="string"
+                            Property="@(b => b.Billet1CastingId ?? "—")"
+                            Title="@L["Field.Casting"]"
+                            Sortable="false"
+                            Editable="false"
+                            CellClass="mes-cell--code" />
+
+            <PropertyColumn T="BatchBilletEdit" TProperty="string"
+                            Property="@(b => b.Billet1AlloyId ?? "—")"
+                            Title="@L["Field.Alloy"]"
+                            Sortable="false"
+                            Editable="false" />
+
+            <PropertyColumn T="BatchBilletEdit" TProperty="decimal?"
+                            Property="b => b.Billet1Kg"
+                            Title="@L["Field.KgSheared"]"
+                            Sortable="false"
+                            CellClass="mes-cell--number" />
+
+            @* Il secondo troncone esiste solo sulle billette composte da due colate: le colonne
+               restano, vuote nel caso normale. *@
+            <PropertyColumn T="BatchBilletEdit" TProperty="string"
+                            Property="@(b => b.Billet2CastingId ?? "—")"
+                            Title="@($"{L["Field.Casting"]} 2")"
+                            Sortable="false"
+                            Editable="false"
+                            CellClass="mes-cell--code" />
+
+            <PropertyColumn T="BatchBilletEdit" TProperty="decimal?"
+                            Property="b => b.Billet2Kg"
+                            Title="@($"{L["Field.KgSheared"]} 2")"
+                            Sortable="false"
+                            CellClass="mes-cell--number" />
+
+            <PropertyColumn T="BatchBilletEdit" TProperty="string"
+                            Property="@(b => b.ProdId ?? "—")"
+                            Title="@L["Field.ProdId"]"
+                            Sortable="false"
+                            Editable="false"
+                            CellClass="mes-cell--code" />
+
+            <TemplateColumn T="BatchBilletEdit" Title="@L["Field.EditStatus"]" Sortable="false" Editable="false">
+                <CellTemplate>@EditStatus(context.Item)</CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+</div>
+
+@code {
+    /// <summary>Le modifiche in sospeso del lotto: la griglia lavora direttamente su queste.</summary>
+    [Parameter, EditorRequired]
+    public BatchEditModel Edit { get; set; } = default!;
+
+    /// <summary>
+    /// Segnala al chiamante che qualcosa e' cambiato. Serve al pulsante Salva della scheda, che
+    /// si abilita sulle modifiche in sospeso.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private HashSet<BatchBilletEdit> _selected = [];
+
+    /// <summary>Primo numero libero: proposto dai comandi che aggiungono billette.</summary>
+    private short NextBilletNo => Edit.Billets.Count == 0
+        ? (short)1
+        : (short)(Edit.Billets.Max(b => b.BilletNo) + 1);
+
+    private async Task OnSelectionChanged(HashSet<BatchBilletEdit> selected)
+    {
+        _selected = selected;
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Una cella e' stata confermata: le modifiche in sospeso possono essere cambiate.
+    /// </summary>
+    private Task OnCommitted(BatchBilletEdit item) => Changed();
+
+    private async Task AddAsync()
+    {
+        var parameters = new DialogParameters<BatchNewBilletsDialog>
+        {
+            { d => d.BatchStart, Edit.Original.StartTs },
+            { d => d.BatchStop, Edit.Original.StopTs },
+            { d => d.NextBilletNo, NextBilletNo },
+        };
+
+        var dialog = await Dialogs.ShowAsync<BatchNewBilletsDialog>(string.Empty, parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: NewBilletsRequest request })
+        {
+            await Guarded(() => Edit.AddBillets(request));
+        }
+    }
+
+    private async Task DuplicateAsync()
+    {
+        if (_selected.SingleOrDefault() is not { } source)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<BatchBilletRangeDialog>
+        {
+            { d => d.Mode, BilletRangeMode.Duplicate },
+            { d => d.InitialCount, 1 },
+            { d => d.InitialFromNo, NextBilletNo },
+            { d => d.InitialFrom, source.StopTs },
+        };
+
+        var dialog = await Dialogs.ShowAsync<BatchBilletRangeDialog>(string.Empty, parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: BilletRangeResult range })
+        {
+            await Guarded(() => Edit.DuplicateBillet(
+                source.LocalId,
+                range.Count,
+                range.FromNo,
+                range.From,
+                range.To));
+        }
+    }
+
+    private async Task RemoveAsync()
+    {
+        if (_selected.Count == 0)
+        {
+            return;
+        }
+
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            L["Msg.RemoveBilletsConfirmTitle"],
+            L["Msg.RemoveBilletsConfirmText", _selected.Count],
+            yesText: L["Action.Remove"],
+            cancelText: L["Action.Cancel"]);
+
+        if (confirmed is not true)
+        {
+            return;
+        }
+
+        var ids = _selected.Select(b => b.LocalId).ToList();
+        _selected = [];
+
+        await Guarded(() => Edit.RemoveBillets(ids));
+    }
+
+    private async Task RenumberAsync()
+    {
+        if (_selected.Count == 0)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<BatchBilletRangeDialog>
+        {
+            { d => d.Mode, BilletRangeMode.Renumber },
+            { d => d.InitialCount, _selected.Count },
+            { d => d.InitialFromNo, _selected.Min(b => b.BilletNo) },
+        };
+
+        var dialog = await Dialogs.ShowAsync<BatchBilletRangeDialog>(string.Empty, parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: BilletRangeResult range })
+        {
+            var ids = _selected.Select(b => b.LocalId).ToList();
+            await Guarded(() => Edit.RenumberBillets(ids, range.FromNo));
+        }
+    }
+
+    private async Task ApplyValueAsync(BilletField field)
+    {
+        if (_selected.Count == 0)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<BatchBilletValueDialog>
+        {
+            { d => d.Field, field },
+            { d => d.Count, _selected.Count },
+            { d => d.CurrentValue, CommonValue(field) },
+        };
+
+        var dialog = await Dialogs.ShowAsync<BatchBilletValueDialog>(string.Empty, parameters);
+        var result = await dialog.Result;
+
+        if (result is not { Canceled: false, Data: BilletValueResult value })
+        {
+            return;
+        }
+
+        var ids = _selected.Select(b => b.LocalId).ToList();
+
+        await Guarded(() =>
+        {
+            switch (value.Field)
+            {
+                case BilletField.Casting:
+                    Edit.ApplyCasting(ids, value.Text!, value.AlloyId);
+                    break;
+                case BilletField.BarLength:
+                    Edit.ApplyBarLength(ids, value.Number!.Value);
+                    break;
+                case BilletField.BilletLength:
+                    Edit.ApplyBilletLength(ids, (int)value.Number!.Value);
+                    break;
+                default:
+                    Edit.ApplyProdId(ids, value.Text);
+                    break;
+            }
+        });
+    }
+
+    private async Task ChangeTimesAsync(BatchBilletEdit billet)
+    {
+        var parameters = new DialogParameters<BatchBilletTimesDialog>
+        {
+            { d => d.BilletNo, billet.BilletNo },
+            { d => d.StartTs, billet.StartTs },
+            { d => d.StopTs, billet.StopTs },
+        };
+
+        var dialog = await Dialogs.ShowAsync<BatchBilletTimesDialog>(string.Empty, parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: (DateTime start, DateTime stop) })
+        {
+            billet.StartTs = start;
+            billet.StopTs = stop;
+            await Changed();
+        }
+    }
+
+    /// <summary>
+    /// Il valore attuale da proporre nel controllo, se le billette selezionate ne hanno uno in
+    /// comune. Con valori diversi si propone il vuoto, come faceva <c>FrmChangeLength</c>: una
+    /// proposta arbitraria fra i valori presenti sarebbe peggio di nessuna proposta.
+    /// </summary>
+    private string? CommonValue(BilletField field)
+    {
+        var values = _selected
+            .Select(b => field switch
+            {
+                BilletField.Casting => b.Billet1CastingId,
+                BilletField.BarLength => b.MmBarSet?.ToString(CultureInfo.CurrentCulture),
+                BilletField.BilletLength => b.MmBilletAct?.ToString(CultureInfo.CurrentCulture),
+                _ => b.ProdId,
+            })
+            .Distinct()
+            .ToList();
+
+        return values.Count == 1 ? values[0] : null;
+    }
+
+    /// <summary>
+    /// Esegue un'operazione sul modello traducendo gli errori di dominio in un avviso. Le
+    /// convalide stanno nel modello e non nei controlli: cosi' valgono anche per chi chiama il
+    /// modello da un'altra parte.
+    /// </summary>
+    private async Task Guarded(Action operation)
+    {
+        try
+        {
+            operation();
+            await Changed();
+        }
+        catch (ProductionException ex)
+        {
+            Snackbar.Add(ex.Localize(L), Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Operazione sulle billette non riuscita.");
+            Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
+        }
+    }
+
+    private async Task Changed()
+    {
+        // La selezione puo' riferire billette che non ci sono piu': va ripulita, altrimenti i
+        // comandi resterebbero abilitati su righe rimosse.
+        _selected = [.. _selected.Where(Edit.Billets.Contains)];
+
+        if (OnChanged.HasDelegate)
+        {
+            await OnChanged.InvokeAsync();
+        }
+    }
+
+    private RenderFragment EditStatus(BatchBilletEdit billet) => billet.EditStatusId?.Trim() switch
+    {
+        "N" => Marker(L["Msg.EditStatusNew"], "N", Color.Info),
+        "M" => Marker(L["Msg.EditStatusModified"], "M", Color.Warning),
+        "A" => Marker(L["Msg.EditStatusAutomatic"], "A", Color.Secondary),
+        _ => @<span>—</span>,
+    };
+
+    private RenderFragment Marker(string title, string text, Color color) =>
+        @<MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="@color" title="@title">
+            @text
+        </MudChip>;
+
+    private static string Timestamp(DateTime? value) =>
+        value?.ToString("g", CultureInfo.CurrentCulture) ?? "—";
+}

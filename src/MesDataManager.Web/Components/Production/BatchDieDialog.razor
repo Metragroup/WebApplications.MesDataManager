@@ -1,0 +1,184 @@
+@inject IStringLocalizer<Strings> L
+@inject IBatchService Batches
+@inject ILogger<BatchDieDialog> Logger
+
+@*
+    Cambio matrice del lotto. Il controllo di esistenza e stato avviene qui, prima di assegnare:
+    l'assegnazione resta comunque in sospeso e finisce a database solo al salvataggio della
+    scheda.
+
+    Il vecchio applicativo (FrmChangeMatrix) scriveva subito e controllava solo l'esistenza.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@L["Msg.ChangeDieTitle"]</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4">@L["Msg.ChangeDieHint"]</MudText>
+
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_dieCode"
+                              @bind-Value:after="Reset"
+                              Label="@L["Field.DieCode"]"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Immediate="true"
+                              Required="true" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="short?" @bind-Value="_dieNumber"
+                                 @bind-Value:after="Reset"
+                                 Label="@L["Field.DieNumber"]"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 Min="0"
+                                 Clearable="true" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudText Typo="Typo.caption">@L["Field.DieId"]</MudText>
+                <MudText Typo="Typo.body1" Class="mes-cell--code">@Composed</MudText>
+            </MudItem>
+        </MudGrid>
+
+        @if (_checked is { } result)
+        {
+            <MudAlert Severity="@OutcomeSeverity(result.Outcome)"
+                      Variant="Variant.Outlined"
+                      Dense="true"
+                      Class="mt-4">
+                @OutcomeMessage(result.Outcome)
+            </MudAlert>
+        }
+        else if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mt-4">
+                @_error
+            </MudAlert>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_working">@L["Action.Cancel"]</MudButton>
+
+        <MudButton OnClick="CheckAsync"
+                   Disabled="@(_working || string.IsNullOrWhiteSpace(_dieCode))">
+            @if (_working)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @L["Action.Check"]
+        </MudButton>
+
+        @* L'assegnazione si abilita solo su una matrice controllata e utilizzabile: non c'e' modo
+           di scavalcare il controllo premendo un pulsante piu' a destra. *@
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   OnClick="Assign"
+                   Disabled="@(_working || _checked is not { IsUsable: true })">
+            @L["Action.Assign"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; } = default!;
+
+    /// <summary>Matrice attuale del lotto, da cui parte la proposta.</summary>
+    [Parameter]
+    public string? CurrentDieCode { get; set; }
+
+    [Parameter]
+    public short? CurrentDieNumber { get; set; }
+
+    private string? _dieCode;
+    private short? _dieNumber;
+    private DieValidation? _checked;
+    private string? _error;
+    private bool _working;
+
+    private string Composed => string.IsNullOrWhiteSpace(_dieCode)
+        ? "—"
+        : DieValidation.ComposeDieId(_dieCode, _dieNumber);
+
+    protected override void OnInitialized()
+    {
+        _dieCode = CurrentDieCode;
+        _dieNumber = CurrentDieNumber;
+    }
+
+    /// <summary>
+    /// Cambiando codice o numero l'esito precedente non vale piu': va rifatto il controllo.
+    /// Senza questo, si potrebbe controllare una matrice e assegnarne un'altra.
+    /// </summary>
+    private void Reset()
+    {
+        _checked = null;
+        _error = null;
+    }
+
+    private async Task CheckAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_dieCode))
+        {
+            return;
+        }
+
+        _working = true;
+        _error = null;
+        _checked = null;
+
+        try
+        {
+            _checked = await Batches.ValidateDieAsync(_dieCode, _dieNumber);
+        }
+        catch (ProductionException ex)
+        {
+            _error = ex.Localize(L);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Controllo della matrice {Die} non riuscito.", Composed);
+            _error = L["Error.UnexpectedError"];
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    private void Assign()
+    {
+        if (_checked is { IsUsable: true } result)
+        {
+            Dialog.Close(DialogResult.Ok(result));
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private Severity OutcomeSeverity(DieCheck outcome) => outcome switch
+    {
+        DieCheck.Available => Severity.Success,
+        DieCheck.Test => Severity.Warning,
+        DieCheck.Unknown => Severity.Info,
+        _ => Severity.Error,
+    };
+
+    private string OutcomeMessage(DieCheck outcome) => outcome switch
+    {
+        DieCheck.Available => L["Msg.DieAvailable"],
+        DieCheck.Test => L["Msg.DieTest"],
+        DieCheck.Unknown => L["Msg.DieUnknown"],
+        DieCheck.NotFound => L["Error.DieNotFound"],
+        DieCheck.Stored => L["Error.DieStored"],
+        DieCheck.Deleted => L["Error.DieDeleted"],
+        DieCheck.Transferred => L["Error.DieTransferred"],
+        _ => L["Error.UnexpectedError"],
+    };
+}

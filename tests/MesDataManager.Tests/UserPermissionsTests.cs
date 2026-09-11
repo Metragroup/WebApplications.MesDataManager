@@ -90,6 +90,21 @@ public sealed class UserPermissionsTests
         Assert.True(permissions.CanInsert);
         Assert.True(permissions.CanUpdate);
         Assert.True(permissions.CanDelete);
+        Assert.True(permissions.IsAdministrator);
+    }
+
+    [Fact]
+    public void Avere_entrambi_i_ruoli_di_scrittura_non_e_essere_amministratore()
+    {
+        // La somma di Archive.Editor e Production.Editor produce la stessa combinazione di
+        // permessi dell'amministratore. Solo il ruolo distingue i due casi, ed e' quello che
+        // decide chi puo' forzare lo sblocco di un lotto in modifica altrui.
+        var permissions = UserPermissions.From(
+            Principal(AppRoles.ArchiveEditor, AppRoles.ProductionEditor));
+
+        Assert.True(permissions.CanDelete);
+        Assert.True(permissions.CanEditProduction);
+        Assert.False(permissions.IsAdministrator);
     }
 
     [Fact]

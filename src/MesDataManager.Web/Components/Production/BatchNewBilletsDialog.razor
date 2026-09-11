@@ -1,0 +1,264 @@
+@inject IStringLocalizer<Strings> L
+@inject IBatchService Batches
+@inject ILogger<BatchNewBilletsDialog> Logger
+
+@*
+    Inserimento di un blocco di billette (FrmNewBillet nel vecchio applicativo), usato anche dalla
+    creazione di un lotto nuovo.
+
+    Kg cesoiati e kg estrusi sono i totali del blocco: vengono divisi per il numero di billette,
+    come faceva BatchesPresenter.AddBillet. Chi inserisce conosce il peso dell'insieme, non quello
+    della singola billetta.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@L["Msg.NewBilletsTitle"]</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="6" sm="4">
+                <MudNumericField T="int" @bind-Value="_count"
+                                 @bind-Value:after="RecomputeTo"
+                                 Label="@L["Field.BilletsToAdd"]"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="500" />
+            </MudItem>
+            <MudItem xs="6" sm="4">
+                <MudNumericField T="short" @bind-Value="_fromNo"
+                                 @bind-Value:after="RecomputeTo"
+                                 Label="@L["Field.BilletFrom"]"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" />
+            </MudItem>
+            <MudItem xs="6" sm="4">
+                <MudTextField T="string" Value="@_toNo.ToString(CultureInfo.InvariantCulture)"
+                              Label="@L["Field.BilletTo"]"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudDatePicker Date="_fromDate" DateChanged="@(d => _fromDate = d ?? _fromDate)"
+                               Label="@L["Field.BatchStart"]"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Editable="true" Clearable="false" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker Time="_fromTime" TimeChanged="@(t => _fromTime = t ?? _fromTime)"
+                               Label="@L["Field.BatchStart"]"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Editable="true" Clearable="false" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudDatePicker Date="_toDate" DateChanged="@(d => _toDate = d ?? _toDate)"
+                               Label="@L["Field.BatchStop"]"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Editable="true" Clearable="false" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker Time="_toTime" TimeChanged="@(t => _toTime = t ?? _toTime)"
+                               Label="@L["Field.BatchStop"]"
+                               Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Editable="true" Clearable="false" />
+            </MudItem>
+
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="decimal" @bind-Value="_barLength"
+                                 Label="@L["Field.MmBarSet"]"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="int" @bind-Value="_billetLength"
+                                 Label="@L["Field.MmBilletAct"]"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="decimal" @bind-Value="_kgSheared"
+                                 Label="@L["Field.KgShearedTotal"]"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="decimal" @bind-Value="_kgExtruded"
+                                 Label="@L["Field.KgExtrudedTotal"]"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+            </MudItem>
+
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_prodId"
+                              Label="@L["Field.ProdId"]"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_castingId"
+                              @bind-Value:after="CheckCastingAsync"
+                              Label="@L["Field.Casting"]"
+                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Immediate="false" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                @* La lega non si digita: arriva dalla colata. Resta a vista perche' e' il dato
+                   che conferma di aver digitato la colata giusta. *@
+                <MudTextField T="string" Value="@_alloyId"
+                              Label="@L["Field.Alloy"]"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+        </MudGrid>
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mt-4">
+                @_error
+            </MudAlert>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_working">@L["Action.Cancel"]</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddAsync" Disabled="_working">
+            @if (_working)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @L["Action.Add"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; } = default!;
+
+    /// <summary>Finestra del lotto: da qui partono le date proposte.</summary>
+    [Parameter]
+    public DateTime? BatchStart { get; set; }
+
+    [Parameter]
+    public DateTime? BatchStop { get; set; }
+
+    /// <summary>Primo numero libero, proposto come inizio della numerazione.</summary>
+    [Parameter]
+    public short NextBilletNo { get; set; } = 1;
+
+    private int _count = 1;
+    private short _fromNo = 1;
+    private short _toNo = 1;
+
+    private DateTime _fromDate = DateTime.Today;
+    private TimeSpan _fromTime = TimeSpan.Zero;
+    private DateTime _toDate = DateTime.Today;
+    private TimeSpan _toTime = TimeSpan.Zero;
+
+    private decimal _barLength;
+    private int _billetLength;
+    private decimal _kgSheared;
+    private decimal _kgExtruded;
+
+    private string? _prodId;
+    private string? _castingId;
+    private string? _alloyId;
+
+    private string? _error;
+    private bool _working;
+
+    protected override void OnInitialized()
+    {
+        _fromNo = NextBilletNo;
+        RecomputeTo();
+
+        var start = BatchStart ?? DateTime.Now;
+        var stop = BatchStop ?? start.AddMinutes(1);
+
+        _fromDate = start.Date;
+        _fromTime = start.TimeOfDay;
+        _toDate = stop.Date;
+        _toTime = stop.TimeOfDay;
+    }
+
+    /// <summary>Il numero finale non si digita: e' quello iniziale piu' le billette da inserire.</summary>
+    private void RecomputeTo() => _toNo = (short)(_fromNo + Math.Max(_count, 1) - 1);
+
+    private async Task CheckCastingAsync()
+    {
+        _alloyId = null;
+        _error = null;
+
+        if (string.IsNullOrWhiteSpace(_castingId))
+        {
+            return;
+        }
+
+        try
+        {
+            var casting = await Batches.FindCastingAsync(_castingId);
+
+            if (casting is null)
+            {
+                _error = L["Error.CastingNotFound"];
+                return;
+            }
+
+            _castingId = casting.Code;
+            _alloyId = casting.AlloyId;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Controllo della colata {Casting} non riuscito.", _castingId);
+            _error = L["Error.UnexpectedError"];
+        }
+    }
+
+    private async Task AddAsync()
+    {
+        _working = true;
+        _error = null;
+
+        try
+        {
+            // La colata e' obbligatoria e deve esistere, come in FrmNewBillet: senza colata non
+            // si sa da che lega viene la billetta.
+            await CheckCastingAsync();
+
+            if (string.IsNullOrWhiteSpace(_castingId) || _alloyId is null)
+            {
+                _error ??= L["Error.CastingNotFound"];
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_prodId) && !await Batches.ProdOrderExistsAsync(_prodId))
+            {
+                _error = L["Error.ProdOrderNotFound"];
+                return;
+            }
+
+            var request = new NewBilletsRequest(
+                Count: _count,
+                FromNo: _fromNo,
+                From: _fromDate.Date + _fromTime,
+                To: _toDate.Date + _toTime,
+                BarLengthMm: _barLength,
+                BilletLengthMm: _billetLength,
+                KgSheared: _kgSheared,
+                KgExtruded: _kgExtruded,
+                ProdId: _prodId,
+                CastingId: _castingId,
+                AlloyId: _alloyId);
+
+            Dialog.Close(DialogResult.Ok(request));
+        }
+        catch (ProductionException ex)
+        {
+            _error = ex.Localize(L);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Preparazione delle billette nuove non riuscita.");
+            _error = L["Error.UnexpectedError"];
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

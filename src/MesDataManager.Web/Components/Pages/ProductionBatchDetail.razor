@@ -1,16 +1,29 @@
 @page "/produzione/lotti/{BatchId}"
+@implements IAsyncDisposable
 
 @inject IBatchService Batches
 @inject IMachineDowntimeService Downtimes
+@inject IBatchDiagnosticsService Diagnostics
+@inject ILookupProvider Lookups
+@inject IUserContext User
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
 @inject IStringLocalizer<Strings> L
 @inject ILogger<ProductionBatchDetail> Logger
 
 @*
-    Scheda del lotto, in sola consultazione. Nel vecchio applicativo era una finestra modale; qui
-    e' una pagina, cosi' ci si arriva per indirizzo e i venti campi di testata stanno larghi.
+    Scheda del lotto. Nel vecchio applicativo era una finestra modale; qui e' una pagina, cosi'
+    ci si arriva per indirizzo e i venti campi di testata stanno larghi.
 
-    Le sezioni "incestamento", "rettifiche" e "cartellini" della vecchia scheda arriveranno con i
-    moduli a cui appartengono (storico ceste e dati di produzione).
+    Testata e pesi restano sempre a vista: sono i dati che si guardano per primi. Tutto il resto
+    sta in schede, come nella vecchia finestra — billette, incestamento, fermi, ordini di
+    produzione e diagnostica.
+
+    Il lotto si apre in lettura. Per modificarlo va preso, e prenderlo significa bloccarlo per gli
+    altri: il blocco vive a database (Batch.IsLock/Lock_Usr/Lock_Ts), non nella sessione. Da qui
+    due obblighi che nel WinForms non c'erano: rilasciarlo quando il circuito muore, e non fidarsi
+    del proprio stato in memoria al salvataggio, perche' un amministratore puo' averlo forzato.
 *@
 
 <PageTitle>@Title &middot; @L["App.Title"]</PageTitle>
@@ -30,13 +43,75 @@
                     @L["Msg.BatchProcessing"]
                 </MudChip>
             }
-            @if (head.IsLock)
+            @if (_editing)
+            {
+                @* Chi sta modificando lo vede scritto: la scheda in modifica e quella in lettura
+                   si somigliano troppo perche' la differenza resti implicita. *@
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning"
+                         Icon="@Icons.Material.Outlined.EditNote"
+                         title="@LockExpiryHint()">
+                    @L["Msg.EditMode"]
+                </MudChip>
+
+                @if (Dirty)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning">
+                        @L["Msg.PendingChanges"]
+                    </MudChip>
+                }
+            }
+            else if (head.IsLock)
             {
                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
-                         Icon="@Icons.Material.Outlined.Lock" Color="Color.Default">
+                         Icon="@Icons.Material.Outlined.Lock" Color="Color.Default"
+                         title="@LockTitle(head)">
                     @head.LockUsr
                 </MudChip>
             }
+
+            <div class="mes-page__actions">
+                @if (_editing)
+                {
+                    <MudButton StartIcon="@Icons.Material.Outlined.Save"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Disabled="@(!Dirty || _busy)"
+                               OnClick="SaveAsync">
+                        @L["Action.Save"]
+                    </MudButton>
+
+                    <MudButton StartIcon="@Icons.Material.Outlined.Close"
+                               Variant="Variant.Text"
+                               Disabled="_busy"
+                               OnClick="CancelAsync">
+                        @L["Action.Cancel"]
+                    </MudButton>
+                }
+                else if (_permissions.CanEditProduction)
+                {
+                    <MudButton StartIcon="@Icons.Material.Outlined.Edit"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Disabled="_busy"
+                               OnClick="BeginEditAsync">
+                        @L["Action.Edit"]
+                    </MudButton>
+                }
+
+                @* Lo sblocco forzato compare solo dove serve: lotto tenuto da un altro e utente
+                   amministratore. Fa perdere le modifiche non salvate dell'altro, quindi non e'
+                   un comando da avere sempre sotto il dito. *@
+                @if (!_editing && head.IsLock && _permissions.IsAdministrator)
+                {
+                    <MudButton StartIcon="@Icons.Material.Outlined.LockOpen"
+                               Variant="Variant.Text"
+                               Color="Color.Warning"
+                               Disabled="_busy"
+                               OnClick="ForceUnlockAsync">
+                        @L["Action.ForceUnlock"]
+                    </MudButton>
+                }
+            </div>
         }
     </header>
 
@@ -53,14 +128,33 @@
         <MudPaper Elevation="0" Class="mes-card">
             <MudGrid Spacing="2">
                 @Field(L["Field.PressId"], _detail.PressId)
-                @Field(L["Field.DieId"], _detail.DieId)
+
+                @* Matrice e causale sono i due campi di testata modificabili: in lettura sono
+                   coppie etichetta/valore come le altre, in modifica diventano comandi. *@
+                @if (_edit is { } dieEdit)
+                {
+                    @DieField(dieEdit)
+                }
+                else
+                {
+                    @Field(L["Field.DieId"], _detail.DieId)
+                }
+
                 @Field(L["Field.BilletCount"], BilletCounts(_detail))
                 @Field(L["Field.BarCount"], _detail.BarCount?.ToString())
                 @Field(L["Field.BatchStart"], Timestamp(_detail.StartTs))
                 @Field(L["Field.BatchStop"], Timestamp(_detail.StopTs))
                 @Field(L["Field.PressClosed"], Closed(_detail.IsPressClosed, _detail.PressClosedTs))
                 @Field(L["Field.SawClosed"], Closed(_detail.IsSawClosed, _detail.SawClosedTs))
-                @Field(L["Field.BatchClosingReason"], _detail.ClosingReasonDescription)
+                @if (_edit is { } reasonEdit)
+                {
+                    @ClosingReasonField(reasonEdit)
+                }
+                else
+                {
+                    @Field(L["Field.BatchClosingReason"], _detail.ClosingReasonDescription)
+                }
+
                 @Field(L["Field.IsSampling"], Flag(_detail.IsSampling))
                 @Field(L["Field.IsErpMarked"], Flag(_detail.IsErpMarked))
                 @Field(L["Field.IsErpImported"], Flag(_detail.IsErpImported))
@@ -83,82 +177,220 @@
             </MudGrid>
         </MudPaper>
 
-        @if (!string.IsNullOrWhiteSpace(_detail.DiagnosticsStatus) || !string.IsNullOrWhiteSpace(_detail.DiagnosticsMsg))
-        {
-            <MudPaper Elevation="0" Class="mes-card">
-                <MudText Typo="Typo.subtitle2" Class="mes-card__title">
-                    @L["Field.DiagnosticsStatus"]
-                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="@DiagnosticsColor(_detail.DiagnosticsStatus)">
-                        @_detail.DiagnosticsStatus
-                    </MudChip>
-                    @if (_detail.DiagnosticsTs is not null)
-                    {
-                        <MudText Typo="Typo.caption">@Timestamp(_detail.DiagnosticsTs)</MudText>
-                    }
+        <MudTabs Elevation="0" Rounded="false" Border="false" ApplyEffectsToContainer="true"
+                 TabPanelsClass="pt-4" Class="mes-tabs">
+
+            <MudTabPanel Text="@($"{L["Msg.BatchBillets"]} ({BilletCount})")">
+                @if (_edit is { } billetEdit)
+                {
+                    @* In modifica la scheda billette diventa una griglia con barra comandi: le
+                       colonne cambiano — i due tronconi si separano — quindi e' un componente a
+                       parte e non la stessa tabella resa modificabile. *@
+                    <BatchBilletsEditor Edit="billetEdit" OnChanged="StateHasChanged" />
+                }
+                else
+                {
+                <MudTable T="BatchBilletRow" Items="_detail.Billets" Dense="true" Hover="true" Striped="true"
+                          Elevation="0" Class="mes-table">
+                    <NoRecordsContent>
+                        <MudText Typo="Typo.body2" Class="pa-4">@L["Msg.NoRecords"]</MudText>
+                    </NoRecordsContent>
+                    <HeaderContent>
+                        <MudTh>@L["Field.BilletNo"]</MudTh>
+                        <MudTh>@L["Field.BatchStart"]</MudTh>
+                        <MudTh>@L["Field.BatchStop"]</MudTh>
+                        <MudTh>@L["Field.ShiftId"]</MudTh>
+                        <MudTh>@L["Field.MmBarSet"]</MudTh>
+                        <MudTh>@L["Field.MmBilletAct"]</MudTh>
+                        <MudTh>@L["Field.KgExtruded"]</MudTh>
+                        <MudTh>@L["Field.Casting"]</MudTh>
+                        <MudTh>@L["Field.Alloy"]</MudTh>
+                        <MudTh>@L["Field.ProdId"]</MudTh>
+                        <MudTh>@L["Field.EditStatus"]</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="@L["Field.BilletNo"]" Class="mes-cell--number">@context.BilletNo</MudTd>
+                        <MudTd DataLabel="@L["Field.BatchStart"]">@Timestamp(context.StartTs)</MudTd>
+                        <MudTd DataLabel="@L["Field.BatchStop"]">@Timestamp(context.StopTs)</MudTd>
+                        <MudTd DataLabel="@L["Field.ShiftId"]">@Text(context.ShiftId)</MudTd>
+                        <MudTd DataLabel="@L["Field.MmBarSet"]" Class="mes-cell--number">@Number(context.MmBarSet)</MudTd>
+                        <MudTd DataLabel="@L["Field.MmBilletAct"]" Class="mes-cell--number">@(context.MmBilletAct?.ToString() ?? "—")</MudTd>
+                        <MudTd DataLabel="@L["Field.KgExtruded"]" Class="mes-cell--number">@Kg(context.KgExtruded)</MudTd>
+                        @* Una billetta puo' essere composta da due tronconi di colate diverse: le due
+                           colonne restano affiancate, con la seconda vuota nel caso normale. *@
+                        <MudTd DataLabel="@L["Field.Casting"]" Class="mes-cell--code">@Pair(context.Billet1CastingId, context.Billet2CastingId)</MudTd>
+                        <MudTd DataLabel="@L["Field.Alloy"]">@Pair(context.Billet1AlloyId, context.Billet2AlloyId)</MudTd>
+                        <MudTd DataLabel="@L["Field.ProdId"]" Class="mes-cell--code">@Text(context.ProdId)</MudTd>
+                        <MudTd DataLabel="@L["Field.EditStatus"]">@EditStatus(context.EditStatusId)</MudTd>
+                    </RowTemplate>
+                </MudTable>
+                }
+            </MudTabPanel>
+
+            <MudTabPanel Text="@L["Msg.BatchBasket"]">
+                <MudText Typo="Typo.subtitle2" Class="mes-section__title">
+                    @L["Msg.BatchTransactions"] (@_detail.ModuleTransactions.Count)
                 </MudText>
-                <pre class="mes-diagnostics">@_detail.DiagnosticsMsg</pre>
-            </MudPaper>
-        }
 
-        <MudText Typo="Typo.subtitle2" Class="mes-section__title">
-            @L["Msg.BatchBillets"] (@_detail.Billets.Count)
-        </MudText>
+                <MudTable T="ModuleTransRow" Items="_detail.ModuleTransactions" Dense="true" Hover="true"
+                          Striped="true" Elevation="0" Class="mes-table">
+                    <NoRecordsContent>
+                        <MudText Typo="Typo.body2" Class="pa-4">@L["Msg.NoRecords"]</MudText>
+                    </NoRecordsContent>
+                    <HeaderContent>
+                        <MudTh>@L["Field.ModuleId"]</MudTh>
+                        <MudTh>@L["Field.BarLength"]</MudTh>
+                        <MudTh>@L["Field.ProdId"]</MudTh>
+                        <MudTh>@L["Field.Qty"]</MudTh>
+                        <MudTh>@L["Field.CreatedTs"]</MudTh>
+                        <MudTh>@L["Field.OprNum"]</MudTh>
+                        <MudTh>@L["Field.OprId"]</MudTh>
+                        <MudTh>@L["Field.WrkCtrId"]</MudTh>
+                        <MudTh>@L["Field.ScrapQty"]</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="@L["Field.ModuleId"]" Class="mes-cell--code">@context.ModuleId</MudTd>
+                        <MudTd DataLabel="@L["Field.BarLength"]" Class="mes-cell--number">@Number(context.BarLength)</MudTd>
+                        <MudTd DataLabel="@L["Field.ProdId"]" Class="mes-cell--code">@Text(context.ProdId)</MudTd>
+                        <MudTd DataLabel="@L["Field.Qty"]" Class="mes-cell--number">@context.Qty</MudTd>
+                        <MudTd DataLabel="@L["Field.CreatedTs"]">@Timestamp(context.CreatedTs)</MudTd>
+                        <MudTd DataLabel="@L["Field.OprNum"]" Class="mes-cell--number">@(context.OprNum?.ToString() ?? "—")</MudTd>
+                        <MudTd DataLabel="@L["Field.OprId"]">@Text(context.OprId)</MudTd>
+                        <MudTd DataLabel="@L["Field.WrkCtrId"]">@Text(context.WrkCtrId)</MudTd>
+                        <MudTd DataLabel="@L["Field.ScrapQty"]" Class="mes-cell--number">@context.ScrapQty</MudTd>
+                    </RowTemplate>
+                </MudTable>
 
-        <MudTable T="BatchBilletRow" Items="_detail.Billets" Dense="true" Hover="true" Striped="true"
-                  Elevation="0" Class="mes-table">
-            <NoRecordsContent>
-                <MudText Typo="Typo.body2" Class="pa-4">@L["Msg.NoRecords"]</MudText>
-            </NoRecordsContent>
-            <HeaderContent>
-                <MudTh>@L["Field.BilletNo"]</MudTh>
-                <MudTh>@L["Field.BatchStart"]</MudTh>
-                <MudTh>@L["Field.BatchStop"]</MudTh>
-                <MudTh>@L["Field.ShiftId"]</MudTh>
-                <MudTh>@L["Field.MmBarSet"]</MudTh>
-                <MudTh>@L["Field.MmBilletAct"]</MudTh>
-                <MudTh>@L["Field.KgExtruded"]</MudTh>
-                <MudTh>@L["Field.Casting"]</MudTh>
-                <MudTh>@L["Field.Alloy"]</MudTh>
-                <MudTh>@L["Field.ProdId"]</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="@L["Field.BilletNo"]" Class="mes-cell--number">@context.BilletNo</MudTd>
-                <MudTd DataLabel="@L["Field.BatchStart"]">@Timestamp(context.StartTs)</MudTd>
-                <MudTd DataLabel="@L["Field.BatchStop"]">@Timestamp(context.StopTs)</MudTd>
-                <MudTd DataLabel="@L["Field.ShiftId"]">@Text(context.ShiftId)</MudTd>
-                <MudTd DataLabel="@L["Field.MmBarSet"]" Class="mes-cell--number">@Number(context.MmBarSet)</MudTd>
-                <MudTd DataLabel="@L["Field.MmBilletAct"]" Class="mes-cell--number">@(context.MmBilletAct?.ToString() ?? "—")</MudTd>
-                <MudTd DataLabel="@L["Field.KgExtruded"]" Class="mes-cell--number">@Kg(context.KgExtruded)</MudTd>
-                @* Una billetta puo' essere composta da due tronconi di colate diverse: le due
-                   colonne restano affiancate, con la seconda vuota nel caso normale. *@
-                <MudTd DataLabel="@L["Field.Casting"]" Class="mes-cell--code">@Pair(context.Billet1CastingId, context.Billet2CastingId)</MudTd>
-                <MudTd DataLabel="@L["Field.Alloy"]">@Pair(context.Billet1AlloyId, context.Billet2AlloyId)</MudTd>
-                <MudTd DataLabel="@L["Field.ProdId"]" Class="mes-cell--code">@Text(context.ProdId)</MudTd>
-            </RowTemplate>
-        </MudTable>
+                @* Il pannello delle rettifiche esiste solo dove la sega le ammette
+                   (Company.SAW_AllowAdjustments), come nel vecchio applicativo. *@
+                @if (_detail.AllowAdjustments)
+                {
+                    <MudText Typo="Typo.subtitle2" Class="mes-section__title">
+                        @L["Msg.BatchAdjustments"] (@AdjustmentCount)
+                    </MudText>
 
-        <MudText Typo="Typo.subtitle2" Class="mes-section__title">
-            @L["Msg.BatchDowntimes"] (@_downtimes.Count)
-        </MudText>
+                    if (_edit is { } adjustmentEdit)
+                    {
+                        <BatchAdjustmentsEditor Edit="adjustmentEdit" OnChanged="StateHasChanged" />
+                    }
+                    else
+                    {
+                    <MudTable T="BatchAdjustmentRow" Items="_detail.Adjustments" Dense="true" Hover="true"
+                              Striped="true" Elevation="0" Class="mes-table">
+                        <NoRecordsContent>
+                            <MudText Typo="Typo.body2" Class="pa-4">@L["Msg.NoRecords"]</MudText>
+                        </NoRecordsContent>
+                        <HeaderContent>
+                            <MudTh>@L["Field.BarLength"]</MudTh>
+                            <MudTh>@L["Field.ProdId"]</MudTh>
+                            <MudTh>@L["Field.Qty"]</MudTh>
+                            <MudTh>@L["Field.CreatedTs"]</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="@L["Field.BarLength"]" Class="mes-cell--number">@Number(context.BarLength)</MudTd>
+                            <MudTd DataLabel="@L["Field.ProdId"]" Class="mes-cell--code">@Text(context.ProdId)</MudTd>
+                            <MudTd DataLabel="@L["Field.Qty"]" Class="mes-cell--number">@context.Qty</MudTd>
+                            <MudTd DataLabel="@L["Field.CreatedTs"]">@Timestamp(context.CreatedTs)</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                    }
+                }
+            </MudTabPanel>
 
-        <MudTable T="MachineDowntimeRow" Items="_downtimes" Dense="true" Hover="true" Striped="true"
-                  Elevation="0" Class="mes-table">
-            <NoRecordsContent>
-                <MudText Typo="Typo.body2" Class="pa-4">@L["Msg.NoRecords"]</MudText>
-            </NoRecordsContent>
-            <HeaderContent>
-                <MudTh>@L["Field.DowntimeStart"]</MudTh>
-                <MudTh>@L["Field.DowntimeStop"]</MudTh>
-                <MudTh>@L["Field.DowntimeDuration"]</MudTh>
-                <MudTh>@L["Field.DowntimeReason"]</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="@L["Field.DowntimeStart"]">@Timestamp(context.StartTs)</MudTd>
-                <MudTd DataLabel="@L["Field.DowntimeStop"]">@Timestamp(context.StopTs)</MudTd>
-                <MudTd DataLabel="@L["Field.DowntimeDuration"]" Class="mes-cell--number">@Duration(context.Duration)</MudTd>
-                <MudTd DataLabel="@L["Field.DowntimeReason"]" Class="mes-cell--wide">@context.ReasonDescription</MudTd>
-            </RowTemplate>
-        </MudTable>
+            <MudTabPanel Text="@($"{L["Msg.BatchDowntimes"]} ({_downtimes.Count})")">
+                <MudTable T="MachineDowntimeRow" Items="_downtimes" Dense="true" Hover="true" Striped="true"
+                          Elevation="0" Class="mes-table">
+                    <NoRecordsContent>
+                        <MudText Typo="Typo.body2" Class="pa-4">@L["Msg.NoRecords"]</MudText>
+                    </NoRecordsContent>
+                    <HeaderContent>
+                        <MudTh>@L["Field.DowntimeStart"]</MudTh>
+                        <MudTh>@L["Field.DowntimeStop"]</MudTh>
+                        <MudTh>@L["Field.DowntimeDuration"]</MudTh>
+                        <MudTh>@L["Field.DowntimeCode"]</MudTh>
+                        <MudTh>@L["Field.DowntimeNo"]</MudTh>
+                        <MudTh>@L["Field.DowntimeReason"]</MudTh>
+                        <MudTh>@L["Field.DowntimeType"]</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="@L["Field.DowntimeStart"]">@Timestamp(context.StartTs)</MudTd>
+                        <MudTd DataLabel="@L["Field.DowntimeStop"]">@Timestamp(context.StopTs)</MudTd>
+                        <MudTd DataLabel="@L["Field.DowntimeDuration"]" Class="mes-cell--number">@Duration(context.Duration)</MudTd>
+                        <MudTd DataLabel="@L["Field.DowntimeCode"]" Class="mes-cell--code">@context.DowntimeCode</MudTd>
+                        @* "Numero fermo" e' il numero della causale, come nella vecchia scheda:
+                           e' con quello che i fermi si chiamano in reparto. *@
+                        <MudTd DataLabel="@L["Field.DowntimeNo"]" Class="mes-cell--number">@context.ReasonId</MudTd>
+                        <MudTd DataLabel="@L["Field.DowntimeReason"]" Class="mes-cell--wide">@context.ReasonDescription</MudTd>
+                        <MudTd DataLabel="@L["Field.DowntimeType"]">@context.TypeDescription</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudTabPanel>
+
+            <MudTabPanel Text="@($"{L["Msg.BatchProdOrders"]} ({_detail.ProductionOrders.Count})")">
+                <MudTable T="BatchProdOrderRow" Items="_detail.ProductionOrders" Dense="true" Hover="true"
+                          Striped="true" Elevation="0" Class="mes-table">
+                    <NoRecordsContent>
+                        <MudText Typo="Typo.body2" Class="pa-4">@L["Msg.NoRecords"]</MudText>
+                    </NoRecordsContent>
+                    <HeaderContent>
+                        <MudTh>@L["Field.ProdId"]</MudTh>
+                        <MudTh>@L["Field.CustomerName"]</MudTh>
+                        <MudTh>@L["Field.SalesAlloyId"]</MudTh>
+                        <MudTh>@L["Field.ProdAlloyId"]</MudTh>
+                        <MudTh>@L["Field.HeatTreatment"]</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="@L["Field.ProdId"]" Class="mes-cell--code">@context.ProdId</MudTd>
+                        <MudTd DataLabel="@L["Field.CustomerName"]" Class="mes-cell--wide">@Text(context.CustomerName)</MudTd>
+                        @* Le due leghe possono differire, e la differenza e' il dato interessante:
+                           restano affiancate invece di essere unificate. *@
+                        <MudTd DataLabel="@L["Field.SalesAlloyId"]">@Text(context.SalesAlloyId)</MudTd>
+                        <MudTd DataLabel="@L["Field.ProdAlloyId"]">@Text(context.ProdAlloyId)</MudTd>
+                        <MudTd DataLabel="@L["Field.HeatTreatment"]">@Text(context.HeatTreatment)</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudTabPanel>
+
+            <MudTabPanel Text="@L["Msg.BatchDiagnostics"]">
+                @* La diagnostica si esegue da qui, e chiede al servizio di guardare il lotto
+                   COME E' ADESSO — con gli aggiustamenti manuali dentro. E' il caso d'uso per
+                   cui il parametro ignoreManualAddedBillets esiste. *@
+                @if (_permissions.CanEditProduction)
+                {
+                    <div class="mes-billets__toolbar">
+                        <MudButton StartIcon="@Icons.Material.Outlined.Biotech"
+                                   Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   Disabled="@(_busy || _runningDiagnostics)"
+                                   OnClick="RunDiagnosticsAsync">
+                            @if (_runningDiagnostics)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            }
+                            @L["Action.RunDiagnostics"]
+                        </MudButton>
+                    </div>
+                }
+
+                @* L'ultima diagnostica chiesta da qui. Sta per prima perche' e' quella che
+                   descrive il lotto come e' adesso, dopo le correzioni. *@
+                <BatchDiagnosticsPanel Title="@L["Msg.UserDiagnostics"]"
+                                       Status="_detail.UsrDiagStatus"
+                                       Timestamp="_detail.UsrDiagTs"
+                                       Message="_detail.UsrDiagMsg"
+                                       Json="_detail.UsrDiagJson" />
+
+                @* Quella del servizio: la scrive lui quando elabora il lotto per conto suo, e
+                   questa applicazione non la tocca mai — nemmeno quando e' vuota, perche' il
+                   vuoto e' un buco nel calcolo automatico e va lasciato visibile. *@
+                <BatchDiagnosticsPanel Title="@L["Msg.ServiceDiagnostics"]"
+                                       Status="_detail.SvcDiagStatus"
+                                       Timestamp="_detail.SvcDiagTs"
+                                       Message="_detail.SvcDiagMsg"
+                                       Json="_detail.SvcDiagJson" />
+            </MudTabPanel>
+        </MudTabs>
     }
 </div>
 
@@ -190,7 +422,42 @@
     private IReadOnlyList<MachineDowntimeRow> _downtimes = [];
     private string? _error;
 
+    private UserPermissions _permissions = UserPermissions.Anonymous;
+
+    /// <summary>Vero quando il blocco del lotto e' di questa sessione.</summary>
+    private bool _editing;
+
+    /// <summary>
+    /// Le modifiche in sospeso. Vive qui, nel circuito, e finisce a database solo al salvataggio:
+    /// e' la decisione di impianto della modifica del lotto. Nullo fuori dalla modalita' modifica.
+    /// </summary>
+    private BatchEditModel? _edit;
+
+    /// <summary>Causali di chiusura selezionabili: solo le attive, in ordine di posizione.</summary>
+    private IReadOnlyList<LookupItem> _closingReasons = [];
+
+    /// <summary>C'e' qualcosa da salvare. Si chiede al modello, non a un flag da tenere allineato.</summary>
+    private bool Dirty => _edit?.HasChanges == true;
+
+    /// <summary>Un comando e' in corso: evita il doppio clic su operazioni che scrivono.</summary>
+    private bool _busy;
+
+    /// <summary>La diagnostica e' in corso: puo' durare fino a trenta secondi.</summary>
+    private bool _runningDiagnostics;
+
+    /// <summary>
+    /// Registrazione dell'intercettazione dell'uscita dalla pagina: serve a non perdere in
+    /// silenzio le modifiche in sospeso.
+    /// </summary>
+    private IDisposable? _navigationGuard;
+
     private string Title => _detail?.BatchId ?? BatchId ?? L["Nav.ProductionBatches"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _permissions = await User.GetCurrentAsync();
+        _navigationGuard = Navigation.RegisterLocationChangingHandler(OnLocationChangingAsync);
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -199,13 +466,24 @@
             return;
         }
 
+        // Cambiando lotto nello stesso circuito, il blocco dell'altro va rilasciato: senza,
+        // basterebbe navigare a un secondo lotto per lasciare il primo bloccato per un'ora.
+        await ReleaseIfEditingAsync();
+
         _detail = null;
         _downtimes = [];
         _error = null;
+        _editing = false;
+        _edit = null;
 
+        await LoadAsync(BatchId);
+    }
+
+    private async Task LoadAsync(string batchId)
+    {
         try
         {
-            _detail = await Batches.GetDetailAsync(BatchId);
+            _detail = await Batches.GetDetailAsync(batchId);
 
             // I fermi si cercano nella finestra del lotto: senza inizio e fine non c'e' finestra.
             if (_detail is { StartTs: { } from, StopTs: { } to })
@@ -219,10 +497,400 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Lettura del lotto {Batch} non riuscita.", BatchId);
+            Logger.LogError(ex, "Lettura del lotto {Batch} non riuscita.", batchId);
             _error = L["Error.UnexpectedError"];
         }
     }
+
+    // ------------------------------------------------------------------ modalita' modifica
+
+    private async Task BeginEditAsync()
+    {
+        if (BatchId is null || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            _detail = await Batches.BeginEditAsync(BatchId);
+            _editing = true;
+            _edit = new BatchEditModel(_detail);
+            _closingReasons = await Lookups.GetAsync(LookupKeys.BatchClosingReasons);
+            Snackbar.Add(L["Msg.EditStarted"], Severity.Success);
+        }
+        catch (ProductionException ex)
+        {
+            // Lotto tenuto da un altro, elaborazione in corso, lotto gia' riconciliato: sono
+            // stati del dato, non errori dell'operatore, e vanno detti senza allarmare.
+            Snackbar.Add(ex.Localize(L), Severity.Warning);
+            await LoadAsync(BatchId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Presa in modifica del lotto {Batch} non riuscita.", BatchId);
+            Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        if (BatchId is null || _busy)
+        {
+            return;
+        }
+
+        if (Dirty && !await ConfirmDiscardAsync())
+        {
+            return;
+        }
+
+        _busy = true;
+
+        try
+        {
+            await Batches.CancelEditAsync(BatchId);
+            _editing = false;
+            _edit = null;
+            Snackbar.Add(L["Msg.EditCancelled"], Severity.Normal);
+            await LoadAsync(BatchId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Rilascio del lotto {Batch} non riuscito.", BatchId);
+            Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Salva le modifiche in sospeso. Dopo il salvataggio la scheda torna in lettura e mostra i
+    /// valori <b>riletti</b>: pesi, conteggi e tempi di ciclo li ha appena ricalcolati la
+    /// procedura del MES, quindi quelli che stavano in memoria non valgono piu'.
+    /// </summary>
+    private async Task SaveAsync()
+    {
+        if (_edit is not { } edit || !edit.HasChanges || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+
+        // Il salvataggio dura circa quaranta secondi, e quasi tutti sono il ricalcolo del lotto
+        // che fa il MES: va detto prima, altrimenti sembra che la pagina si sia piantata.
+        Snackbar.Add(L["Msg.SavingBatch"], Severity.Info);
+
+        try
+        {
+            var result = await Batches.SaveAsync(edit);
+
+            _detail = result.Detail;
+            _editing = false;
+            _edit = null;
+
+            // I fermi si rileggono con la finestra nuova: allungando il lotto ne possono
+            // entrare o uscire.
+            if (_detail is { StartTs: { } from, StopTs: { } to })
+            {
+                _downtimes = await Downtimes.GetForBatchAsync(_detail.PressId, from, to);
+            }
+
+            // Salvato e ricalcolato sono due cose diverse: se il ricalcolo non e' riuscito i
+            // numeri a schermo non corrispondono a cio' che si e' appena scritto.
+            Snackbar.Add(
+                result.Recalculated ? L["Msg.RecordSaved"] : L["Msg.SavedWithoutRecalculation"],
+                result.Recalculated ? Severity.Success : Severity.Warning);
+        }
+        catch (ProductionException ex)
+        {
+            // Il caso da non confondere: blocco perduto. Le modifiche restano a schermo, ma non
+            // sono piu' salvabili — va detto con chiarezza invece di riprovare.
+            Snackbar.Add(ex.Localize(L), Severity.Error);
+
+            if (ex.MessageKey.EndsWith("BatchLockLost", StringComparison.Ordinal))
+            {
+                _editing = false;
+                _edit = null;
+                await LoadAsync(edit.BatchId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Salvataggio del lotto {Batch} non riuscito.", edit.BatchId);
+            Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ForceUnlockAsync()
+    {
+        if (BatchId is null || _detail is not { } detail || _busy)
+        {
+            return;
+        }
+
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            L["Msg.ForceUnlockConfirmTitle"],
+            L["Msg.ForceUnlockConfirmText", detail.LockUsr ?? "?"],
+            yesText: L["Action.ForceUnlock"],
+            cancelText: L["Action.Cancel"]);
+
+        if (confirmed is not true)
+        {
+            return;
+        }
+
+        _busy = true;
+
+        try
+        {
+            await Batches.ForceUnlockAsync(BatchId);
+            Snackbar.Add(L["Msg.ForceUnlockDone"], Severity.Warning);
+            await LoadAsync(BatchId);
+        }
+        catch (ProductionException ex)
+        {
+            Snackbar.Add(ex.Localize(L), Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Sblocco forzato del lotto {Batch} non riuscito.", BatchId);
+            Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Esegue la diagnostica sul lotto. Non e' una lettura: scrive l'esito, la risposta intera e
+    /// le billette che il servizio ritiene mancanti — per questo il pulsante c'e' solo per chi
+    /// scrive la produzione, e la scheda si ricarica dopo.
+    /// </summary>
+    private async Task RunDiagnosticsAsync()
+    {
+        if (BatchId is null || _runningDiagnostics)
+        {
+            return;
+        }
+
+        _runningDiagnostics = true;
+
+        try
+        {
+            var outcome = await Diagnostics.RunAsync(BatchId, ignoreManualAddedBillets: false);
+
+            Snackbar.Add(
+                L["Msg.DiagnosticsDone", outcome.Status],
+                outcome.Status switch
+                {
+                    DiagnosticsOutcome.Error => Severity.Error,
+                    DiagnosticsOutcome.Warning => Severity.Warning,
+                    _ => Severity.Success,
+                });
+
+            // Le billette inserite dalla diagnostica cambiano il lotto senza che l'operatore
+            // abbia toccato niente: va detto, altrimenti se le trova e non sa da dove vengono.
+            if (outcome.InsertedBillets > 0)
+            {
+                Snackbar.Add(L["Msg.DiagnosticsInsertedBillets", outcome.InsertedBillets], Severity.Info);
+            }
+
+            await LoadAsync(BatchId);
+
+            // Se il lotto e' in modifica il modello si ricostruisce sulla fotografia nuova: la
+            // diagnostica puo' aver aggiunto billette, e ripartire dal vecchio elenco le
+            // perderebbe. Le modifiche in sospeso fatte finora si perdono, ed e' il motivo per
+            // cui la diagnostica si esegue prima di mettersi a correggere.
+            if (_editing && _detail is { } refreshed)
+            {
+                _edit = new BatchEditModel(refreshed);
+            }
+        }
+        catch (ProductionException ex)
+        {
+            Snackbar.Add(ex.Localize(L), Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Diagnostica del lotto {Batch} non riuscita.", BatchId);
+            Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
+        }
+        finally
+        {
+            _runningDiagnostics = false;
+        }
+    }
+
+    /// <summary>
+    /// Chiede conferma prima di buttare via le modifiche in sospeso. Il pulsante che prosegue e'
+    /// quello che <b>abbandona</b>: e' l'azione distruttiva, e va nominata per quello che fa.
+    /// </summary>
+    private async Task<bool> ConfirmDiscardAsync()
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            L["Msg.DiscardChangesTitle"],
+            L["Msg.DiscardChangesText"],
+            yesText: L["Action.Discard"],
+            cancelText: L["Action.Continue"]);
+
+        return confirmed is true;
+    }
+
+    /// <summary>
+    /// Uscendo dalla pagina il blocco va rilasciato, e se ci sono modifiche in sospeso va prima
+    /// chiesto. Vale per la navigazione interna: la chiusura del browser non passa da qui, ed e'
+    /// per quella che il blocco ha una scadenza.
+    /// </summary>
+    private async ValueTask OnLocationChangingAsync(LocationChangingContext context)
+    {
+        if (!_editing)
+        {
+            return;
+        }
+
+        if (Dirty && !await ConfirmDiscardAsync())
+        {
+            context.PreventNavigation();
+            return;
+        }
+
+        await ReleaseIfEditingAsync();
+    }
+
+    /// <summary>
+    /// Rilascia il blocco senza disturbare l'operatore: e' la via di uscita comune a navigazione,
+    /// cambio di lotto e morte del circuito.
+    /// </summary>
+    private async Task ReleaseIfEditingAsync()
+    {
+        if (!_editing || _detail is null)
+        {
+            return;
+        }
+
+        var batchId = _detail.BatchId;
+        _editing = false;
+        _edit = null;
+
+        try
+        {
+            await Batches.CancelEditAsync(batchId);
+        }
+        catch (Exception ex)
+        {
+            // Alla morte del circuito i servizi possono essere gia' in smontaggio: se il rilascio
+            // non riesce, il blocco resta fino alla scadenza — che esiste per questo.
+            Logger.LogWarning(ex, "Rilascio del blocco del lotto {Batch} non riuscito.", batchId);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _navigationGuard?.Dispose();
+        await ReleaseIfEditingAsync();
+    }
+
+    // ------------------------------------------------------------------ campi modificabili
+
+    /// <summary>
+    /// La matrice in modifica: il valore in sospeso con il comando che apre il controllo. Non e'
+    /// un campo di testo — la matrice si sceglie fra quelle che esistono, e lo stato d'uso va
+    /// verificato prima di assegnarla.
+    /// </summary>
+    private RenderFragment DieField(BatchEditModel edit) =>
+        @<MudItem xs="12" sm="6" md="3">
+            <div class="mes-field">
+                <span class="mes-field__label">@L["Field.DieId"]</span>
+                <span class="mes-field__value mes-field__value--action">
+                    @(string.IsNullOrWhiteSpace(edit.DieId) ? "—" : edit.DieId)
+                    <MudIconButton Icon="@Icons.Material.Outlined.Edit"
+                                   Size="Size.Small"
+                                   Disabled="_busy"
+                                   aria-label="@L["Msg.ChangeDieTitle"]"
+                                   OnClick="ChangeDieAsync" />
+                    @if (edit.DieChanged)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.FiberManualRecord"
+                                 Size="Size.Small"
+                                 Color="Color.Warning"
+                                 title="@L["Msg.PendingChanges"]"
+                                 role="img" />
+                    }
+                </span>
+            </div>
+        </MudItem>;
+
+    /// <summary>
+    /// La causale di chiusura in modifica: elenco delle attive, piu' la voce vuota. Il vecchio
+    /// applicativo apriva una finestra con una griglia; una combobox fa la stessa cosa in un
+    /// gesto, come deciso nella specifica.
+    /// </summary>
+    private RenderFragment ClosingReasonField(BatchEditModel edit) =>
+        @<MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string"
+                       Value="@(edit.ClosingReasonId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty)"
+                       ValueChanged="ClosingReasonChanged"
+                       Label="@L["Field.BatchClosingReason"]"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Disabled="_busy">
+                <MudSelectItem T="string" Value="@string.Empty">@L["Msg.NoClosingReason"]</MudSelectItem>
+                @foreach (var item in _closingReasons)
+                {
+                    <MudSelectItem T="string" Value="@item.Value">@item.Text</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>;
+
+    private async Task ChangeDieAsync()
+    {
+        if (_edit is not { } edit)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<BatchDieDialog>
+        {
+            { d => d.CurrentDieCode, edit.DieCode },
+            { d => d.CurrentDieNumber, edit.DieNumber },
+        };
+
+        var dialog = await Dialogs.ShowAsync<BatchDieDialog>(string.Empty, parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: DieValidation die })
+        {
+            edit.ChangeDie(die);
+
+            // La matrice di prova si assegna ma va detto. Lo stato d'uso mancante no: sui sei mesi
+            // precedenti al 9 settembre 2026 e' il caso di 94 lotti veri su 347, e un avviso su
+            // un quarto delle assegnazioni si impara a ignorare.
+            if (die.IsWarning)
+            {
+                Snackbar.Add(L["Msg.DieTest"], Severity.Warning);
+            }
+        }
+    }
+
+    private void ClosingReasonChanged(string? value) =>
+        _edit?.ChangeClosingReason(
+            short.TryParse(value, CultureInfo.InvariantCulture, out var id) ? id : null);
 
     /// <summary>Coppia etichetta/valore della testata, in sola lettura.</summary>
     private RenderFragment Field(string label, string? value) =>
@@ -233,6 +901,32 @@
             </div>
         </MudItem>;
 
+    /// <summary>
+    /// Stato di modifica della billetta: <c>N</c> inserita a mano, <c>M</c> modificata a mano,
+    /// <c>A</c> aggiunta dalla diagnostica. Vuoto significa "come l'ha rilevata la pressa", che e'
+    /// il caso normale e non merita un segno.
+    /// </summary>
+    private RenderFragment EditStatus(string? editStatusId) => editStatusId?.Trim() switch
+    {
+        "N" => Marker(L["Msg.EditStatusNew"], "N", Color.Info),
+        "M" => Marker(L["Msg.EditStatusModified"], "M", Color.Warning),
+        "A" => Marker(L["Msg.EditStatusAutomatic"], "A", Color.Secondary),
+        _ => @<span>—</span>,
+    };
+
+    private RenderFragment Marker(string title, string text, Color color) =>
+        @<MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="@color" title="@title">
+            @text
+        </MudChip>;
+
+    /// <summary>
+    /// Quante billette mostra la scheda: in modifica sono quelle in sospeso, che possono essere
+    /// piu' o meno di quelle a database.
+    /// </summary>
+    private int BilletCount => _edit?.Billets.Count ?? _detail?.Billets.Count ?? 0;
+
+    private int AdjustmentCount => _edit?.Adjustments.Count ?? _detail?.Adjustments.Count ?? 0;
+
     /// <summary>Billette vere sul totale dichiarato dal lotto.</summary>
     private string BilletCounts(BatchDetail detail) =>
         $"{detail.RealBilletCount} {L["Msg.OutOf"]} {detail.BilletCount?.ToString() ?? "—"}";
@@ -242,6 +936,14 @@
         : L["Msg.BatchNotClosed"];
 
     private string Flag(bool value) => value ? L["Msg.Yes"] : L["Msg.No"];
+
+    /// <summary>Chi tiene il lotto in modifica e da quando, per il fumetto del lucchetto.</summary>
+    private string LockTitle(BatchDetail detail) =>
+        $"{detail.LockUsr} — {Timestamp(detail.LockTs)}";
+
+    /// <summary>La scadenza del blocco va detta: e' l'unica regola che agisce da sola.</summary>
+    private string LockExpiryHint() =>
+        L["Msg.LockExpiresIn", BatchLockPolicy.ExpiryMinutes];
 
     private static string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
 

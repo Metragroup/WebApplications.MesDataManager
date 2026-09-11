@@ -1,12 +1,18 @@
 namespace MesDataManager.Application.Production;
 
 /// <summary>Riga della griglia Fermi macchina, gia' risolta con le descrizioni di causale e tipo.</summary>
+/// <param name="DowntimeCode">
+/// Codice del fermo, composto da pressa e istante di fine (<c>MP1250910103607</c>). Non e' la
+/// chiave — quella e' <paramref name="Id"/> — ma e' il riferimento con cui il fermo viene
+/// nominato in reparto, ed e' per questo che la scheda del lotto lo mostra.
+/// </param>
 public sealed record MachineDowntimeRow(
     int Id,
     string PressId,
     DateTime StartTs,
     DateTime StopTs,
     TimeSpan Duration,
+    string DowntimeCode,
     short ReasonId,
     string ReasonDescription,
     short TypeId,

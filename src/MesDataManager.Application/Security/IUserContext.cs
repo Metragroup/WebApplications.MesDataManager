@@ -80,6 +80,14 @@ public sealed record UserPermissions
     public bool CanEditProduction { get; init; }
 
     /// <summary>
+    /// Ha il ruolo <c>Administrator</c>. Non si deduce dagli altri permessi: chi ha insieme
+    /// <c>Archive.Editor</c> e <c>Production.Editor</c> ottiene la stessa combinazione senza
+    /// essere amministratore, e dedurla gli concederebbe per errore lo sblocco forzato di un
+    /// lotto in modifica altrui — il gesto che fa perdere il lavoro di un collega.
+    /// </summary>
+    public bool IsAdministrator { get; init; }
+
+    /// <summary>
     /// Deriva i permessi dai claim.
     /// <para>
     /// Le anagrafiche le scrivono <c>Archive.Editor</c> e <c>Administrator</c>: inserimento,
@@ -131,6 +139,7 @@ public sealed record UserPermissions
             CanUpdate = canWriteArchives,
             CanDelete = canWriteArchives,
             CanEditProduction = canEditProduction,
+            IsAdministrator = isAdministrator,
         };
     }
 

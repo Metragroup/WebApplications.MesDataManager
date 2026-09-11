@@ -125,19 +125,23 @@ segnalare nulla. Finche' la preferenza non e' nota la griglia non si disegna: ca
 rifarla mostrerebbe per un istante le colonne dell'altra sorgente e costerebbe
 un'interrogazione buttata.
 
-Restano fuori, perche' sono scritture o dipendono dalla diagnostica: la marcatura "da riconciliare"
-sulle righe selezionate e la **diagnostica massiva** sull'intero elenco. Vedi 1.3, punto 3.
+La marcatura "da riconciliare" sulle righe selezionate e' arrivata il 9 settembre 2026, insieme a
+creazione, eliminazione e chiusura forzata: la barra comandi sta sopra la griglia e i comandi si
+abilitano secondo la selezione, al posto del menu contestuale del vecchio applicativo. La
+**diagnostica massiva** sull'intero elenco non e' stata riportata: significava una chiamata HTTP
+per lotto, e la marcatura ora si limita a leggere l'esito che i lotti hanno gia'. Vedi 1.3.
 
-### 1.3. Lotti in corso — elenco e dettaglio fatti, scrittura da fare
+### 1.3. Lotti in corso — fatto
 
 Elenco dei lotti non ancora conclusi e scheda del singolo lotto, in sola consultazione.
 
 | | |
 |---|---|
 | Nel vecchio progetto | `ucPendingBatches` (elenco) e `frmBatchDetail` (scheda), con `BatchesPresenter` |
-| Dov'e' ora | pagine `produzione/lotti` e `produzione/lotti/{lotto}` (`Components/Pages/ProductionBatches.razor`, `ProductionBatchDetail.razor`), servizio `BatchService` |
-| Entita' aggiunte | `Batch` e `BatchBillet` (schema `Press`), con la chiave esterna fra le due che **manca dall'EDMX del vecchio progetto** ma esiste a database |
-| Nella scheda | testata, billette vere del lotto e macrofermi che si sovrappongono alla sua finestra (`IMachineDowntimeService.GetForBatchAsync`) |
+| Dov'e' ora | pagine `produzione/lotti` e `produzione/lotti/{lotto}` (`Components/Pages/ProductionBatches.razor`, `ProductionBatchDetail.razor`), servizi `BatchService` e `BatchDiagnosticsService` |
+| Entita' aggiunte | `Batch`, `BatchBillet`, `BatchBarQty`, `BatchWorker`, `BatchProdOrder`, `BatchBilletProdOrder` (schema `Press`); viste `ModuleTrans`, `ModuleTransRoute`, `ModuleTransScrap`, `ProductionTag`, `Die`, `DieSetup`, `Casting` |
+| Nella scheda | testata e pesi sempre a vista; cinque schede — billette, incestamento (con rettifiche), macrofermi della finestra del lotto, ordini di produzione, diagnostica |
+| Modifica | blocco su riga, modifiche in sospeso nel circuito, salvataggio in una transazione, ricalcolo del MES dopo il commit |
 
 **`BatchBillet.TypeID` non e' un dettaglio tecnico**: `0` apre il lotto, `1` e' una billetta vera,
 `2` lo chiude. Le righe 0 e 2 portano gli stessi istanti della testata e **non** sono billette:
@@ -157,22 +161,39 @@ e' stata verificata su lotti veri, e ha fatto emergere che `DieCode` contiene sp
 su alcune righe mentre `DieId` e' pulito: per questo la matrice si legge da `DieId`, come faceva
 la vecchia scheda.
 
-Restano da fare, in ordine di dipendenza:
+Fatto anche il resto, il 9 settembre 2026, secondo
+[`piano-modifica-lotto.md`](piano-modifica-lotto.md) — che resta il documento da leggere per le
+decisioni e per il perche':
 
-1. **Lock del lotto e modifica delle billette.** Il lock del vecchio applicativo e' pessimistico,
-   persistito su riga e **senza scadenza**: un blocco orfano resta tale a tempo indeterminato, e
-   basta premere "Modifica" su un lotto gia' riconciliato per bloccarlo per sempre. Da rifare, non
-   da ricopiare. Sul database di test si vedono ancora lotti con `IsLock = 1`.
-2. **Le operazioni di correzione**: ordine di produzione, colata, lunghezze, rinumerazione,
-   matrice, causale di chiusura, nuova e duplica billetta. Nel vecchio applicativo scrivono tutte
-   in differita, sul contesto EF unico di sessione, e la `SaveChanges` avviene al salvataggio della
-   scheda: qui serve una transazione esplicita.
-3. **Chiusura forzata pressa/sega** (stored procedure `usp_Batch_PressClose`/`usp_Batch_SawClose`),
-   **marcatura "da riconciliare"** (che nel vecchio codice richiede il superamento della
-   diagnostica) ed **eliminazione** (cascata manuale su piu' tabelle, compresa `Press.BatchWorker`
-   che l'EDMX non modella, piu' un messaggio asincrono verso l'ERP).
-4. **Diagnostica**: servizio HTTP esterno con ripiego su ~340 righe di regole locali. Attenzione:
-   sulle presse senza MES la diagnostica **decide anche** `IsPressClosed`/`IsSawClosed`.
+1. **Lock del lotto**, rifatto e non ricopiato: UPN al posto di `utente\NOMEPC`, presa atomica
+   con una sola istruzione condizionata, rilascio alla dismissione del circuito e **scadenza a
+   60 minuti**, che il vecchio applicativo non aveva. Il rientro nel proprio blocco e' lecito, e
+   lo sblocco forzato vuole il ruolo `Administrator` — non la somma dei permessi.
+2. **Le operazioni di correzione**: matrice (con controllo dello stato d'uso, che prima guardava
+   solo la diagnostica), causale di chiusura, billette in modifica con aggiunta, duplicazione,
+   rimozione a blocco, rinumerazione e modifica multipla, rettifiche delle barre. Le modifiche
+   restano in sospeso nel circuito e finiscono a database in **una transazione**.
+3. **Chiusura forzata pressa/sega**, **marcatura "da riconciliare"** — che ora <b>non</b>
+   rilancia la diagnostica ma legge quella che i lotti hanno, saltando e dichiarando chi non ce
+   l'ha — ed **eliminazione** con la cascata completa (`Press.BatchWorker` compresa) e il
+   messaggio asincrono verso l'ERP, inviato dentro la transazione.
+4. **Diagnostica**: servizio HTTP esterno, **senza** il ripiego sulle ~340 righe di regole locali
+   (deciso: due copie delle stesse regole divergono). La risposta si conserva intera in
+   `DiagnosticsMsg`, che per questo e' passata a `varchar(max)` — una risposta reale senza
+   billette mancanti pesa gia' 4.158 caratteri. Sulle presse senza MES l'esito decide
+   `IsPressClosed`/`IsSawClosed`, ma al **salvataggio del lotto** e non a ogni diagnostica.
+
+**Due misure che hanno cambiato il progetto**, prese su `MES40_RDP_TEST` il 9 settembre 2026:
+
+- `usp_Batch_Elab` impiega **~35 secondi per lotto** (34,2 / 36,8 / 36,7 su tre esecuzioni). Sta
+  quindi **fuori** dalla transazione — tenere aperti i lock su `Press.Batch` e `Press.BatchBillet`
+  per quaranta secondi bloccherebbe la raccolta dati — e vuole un timeout esplicito, perche' il
+  predefinito dell'applicazione e' 30 secondi e la farebbe fallire sempre. Il salvataggio di un
+  lotto dura di conseguenza circa quaranta secondi, come nel vecchio applicativo.
+- lo **stato d'uso delle matrici**: sui sei mesi precedenti, 215 lotti su matrici disponibili, 94
+  su matrici **senza riga di stato** e 37 su matrici di prova. Avvisare sullo stato mancante
+  avrebbe significato un avviso su un quarto delle assegnazioni, quindi resta silenzioso come
+  nella diagnosi del vecchio applicativo; l'avviso e' solo per le matrici di prova.
 
 **I valori di riepilogo li ricalcola lo SCADA, non questa applicazione.** `usp_Batch_Elab`
 ricalcola i valori di riepilogo di lotto e billette e **appartiene alle procedure di raccolta dati

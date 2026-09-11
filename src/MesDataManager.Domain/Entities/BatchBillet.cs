@@ -27,6 +27,23 @@ public sealed class BatchBillet
     public DateTime? StartTs { get; set; }
     public DateTime? StopTs { get; set; }
 
+    /// <summary>
+    /// Inizio della billetta successiva. La scrive la raccolta dati; le billette create a mano la
+    /// lasciano vuota, come faceva <c>CreateBatchBillet</c>.
+    /// </summary>
+    public DateTime? StartTsNextBill { get; set; }
+
+    /// <summary>Secondi di estrusione effettiva, contro <see cref="SecCycle"/> che e' il ciclo intero.</summary>
+    public int? SecExtrusion { get; set; }
+
+    /// <summary>
+    /// Causale di chiusura, valorizzata solo sul marcatore di chiusura del lotto
+    /// (<see cref="BatchBilletType.BatchStop"/>): e' la copia di
+    /// <see cref="Batch.PressBatchClosingReasonId"/> che va tenuta allineata quando la causale
+    /// cambia.
+    /// </summary>
+    public byte? ClosingReasonId { get; set; }
+
     public string? ShiftId { get; set; }
 
     public decimal? MmBarSet { get; set; }

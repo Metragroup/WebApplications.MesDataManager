@@ -9,6 +9,7 @@ using MesDataManager.Infrastructure.Production;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace MesDataManager.Infrastructure;
 
@@ -55,6 +56,32 @@ public static class DependencyInjection
         services.AddScoped<IBatchService, BatchService>();
         services.AddScoped<IShiftCalendar, PressShiftCalendar>();
         services.AddScoped<IHomeIndicatorService, HomeIndicatorService>();
+
+        // Diagnostica: l'indirizzo del servizio sta in configurazione e non e' un segreto — e'
+        // un servizio di stabilimento raggiungibile solo dalla rete interna. I due valori si
+        // leggono a mano invece di legarli con il binder, che vorrebbe un pacchetto in piu' per
+        // due stringhe.
+        var diagnosticsSection = configuration.GetSection(DiagnosticsOptions.SectionName);
+        var diagnosticsOptions = new DiagnosticsOptions
+        {
+            BaseUrl = diagnosticsSection["BaseUrl"] ?? string.Empty,
+            TimeoutSeconds = int.TryParse(diagnosticsSection["TimeoutSeconds"], out var seconds) && seconds > 0
+                ? seconds
+                : 30,
+        };
+
+        services.AddSingleton(Options.Create(diagnosticsOptions));
+
+        services.AddHttpClient<IDiagnosticsClient, DiagnosticsClient>((provider, http) =>
+        {
+            var options = provider
+                .GetRequiredService<IOptions<DiagnosticsOptions>>()
+                .Value;
+
+            http.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+        });
+
+        services.AddScoped<IBatchDiagnosticsService, BatchDiagnosticsService>();
 
         return services;
     }

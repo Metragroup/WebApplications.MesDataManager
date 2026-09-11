@@ -222,6 +222,7 @@ public sealed class MachineDowntimeService(
             d.StartTs,
             d.StopTs,
             d.StopTs > d.StartTs ? d.StopTs - d.StartTs : TimeSpan.Zero,
+            d.DowntimeCode,
             d.DowntimeReasonId,
             reason == null ? "" : reason.Description,
             t.PressDowntimeTypeId,

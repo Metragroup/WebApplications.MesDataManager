@@ -1,0 +1,142 @@
+@inject IStringLocalizer<Strings> L
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject ILogger<BatchAdjustmentsEditor> Logger
+
+@*
+    Rettifiche delle barre in modifica. Sono poche righe per lotto, quindi la griglia e' piccola e
+    i comandi sono due: aggiungi e rimuovi. Lunghezza, ordine e quantita' si scrivono nella cella.
+
+    La quantita' puo' essere negativa: e' una correzione del conteggio della sega, non una misura.
+*@
+
+<div class="mes-billets">
+    <div class="mes-billets__toolbar">
+        <MudButton StartIcon="@Icons.Material.Outlined.Add"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Size="Size.Small"
+                   OnClick="AddAsync">
+            @L["Action.Add"]
+        </MudButton>
+
+        <MudButton StartIcon="@Icons.Material.Outlined.Delete"
+                   Variant="Variant.Text"
+                   Color="Color.Error"
+                   Size="Size.Small"
+                   Disabled="@(_selected.Count == 0)"
+                   OnClick="RemoveAsync">
+            @L["Action.Remove"]
+        </MudButton>
+    </div>
+
+    <MudDataGrid T="BatchAdjustmentEdit"
+                 Items="Edit.Adjustments"
+                 MultiSelection="true"
+                 SelectedItems="_selected"
+                 SelectedItemsChanged="@(s => _selected = s)"
+                 SelectOnRowClick="false"
+                 ReadOnly="false"
+                 EditMode="DataGridEditMode.Cell"
+                 EditTrigger="DataGridEditTrigger.OnRowClick"
+                 CommittedItemChanged="OnCommitted"
+                 Dense="true"
+                 Hover="true"
+                 Striped="true"
+                 Bordered="false"
+                 Elevation="0"
+                 Class="mes-table">
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Class="pa-4">@L["Msg.NoRecords"]</MudText>
+        </NoRecordsContent>
+
+        <Columns>
+            <SelectColumn T="BatchAdjustmentEdit" />
+
+            <PropertyColumn T="BatchAdjustmentEdit" TProperty="decimal"
+                            Property="a => a.BarLength"
+                            Title="@L["Field.BarLength"]"
+                            Sortable="false"
+                            CellClass="mes-cell--number" />
+
+            <PropertyColumn T="BatchAdjustmentEdit" TProperty="string"
+                            Property="@(a => a.ProdId ?? string.Empty)"
+                            Title="@L["Field.ProdId"]"
+                            Sortable="false"
+                            CellClass="mes-cell--code" />
+
+            <PropertyColumn T="BatchAdjustmentEdit" TProperty="int"
+                            Property="a => a.Qty"
+                            Title="@L["Field.Qty"]"
+                            Sortable="false"
+                            CellClass="mes-cell--number" />
+
+            <TemplateColumn T="BatchAdjustmentEdit" Title="@L["Field.CreatedTs"]" Sortable="false" Editable="false">
+                <CellTemplate>@Timestamp(context.Item.CreatedTs)</CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public BatchEditModel Edit { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private HashSet<BatchAdjustmentEdit> _selected = [];
+
+    private Task OnCommitted(BatchAdjustmentEdit item) => Changed();
+
+    private async Task AddAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<BatchAdjustmentDialog>(string.Empty);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: BatchAdjustmentValues values })
+        {
+            try
+            {
+                Edit.AddAdjustment(values.BarLength, values.ProdId, values.Qty);
+                await Changed();
+            }
+            catch (ProductionException ex)
+            {
+                Snackbar.Add(ex.Localize(L), Severity.Warning);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Aggiunta della rettifica non riuscita.");
+                Snackbar.Add(L["Error.UnexpectedError"], Severity.Error);
+            }
+        }
+    }
+
+    private async Task RemoveAsync()
+    {
+        if (_selected.Count == 0)
+        {
+            return;
+        }
+
+        var ids = _selected.Select(a => a.LocalId).ToList();
+        _selected = [];
+
+        Edit.RemoveAdjustments(ids);
+        await Changed();
+    }
+
+    private async Task Changed()
+    {
+        _selected = [.. _selected.Where(Edit.Adjustments.Contains)];
+
+        if (OnChanged.HasDelegate)
+        {
+            await OnChanged.InvokeAsync();
+        }
+    }
+
+    private static string Timestamp(DateTime value) =>
+        value.ToString("g", CultureInfo.CurrentCulture);
+}
